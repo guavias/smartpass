@@ -1,0 +1,10 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@500&display=swap");
+
+:root {
+  --hi-red: #c5362e;
+  --nav-bg: #f6f1e8;
+  --text: #111;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Poppins", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
