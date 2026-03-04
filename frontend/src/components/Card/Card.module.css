@@ -1,0 +1,13 @@
+.ch-card {
+  border: 1px solid rgba(0,0,0,0.12);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.10);
+  padding: 18px;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.ch-cardTitle {
+  margin: 0 0 12px 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+}

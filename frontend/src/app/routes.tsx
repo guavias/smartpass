@@ -1,7 +1,7 @@
 import { createBrowserRouter } from "react-router-dom";
 import Shell from "./Shell";
 
-import HeroPage from "../pages/HeroPage";
+import HeroPage from "../pages/HeroPage/HeroPage";
 import BookingPage from "../pages/BookingPage";
 import ReservationFindPage from "../pages/ReservationFindPage";
 import ReservationDetailPage from "../pages/ReservationDetailPage";

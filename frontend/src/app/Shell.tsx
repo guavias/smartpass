@@ -25,7 +25,7 @@ export default function Shell() {
         />
       )}
 
-      <main style={{ padding: embed ? 0 : 24 }}>
+      <main style={{ padding: embed ? 0 : "0 24px 24px" }}>
         <Outlet />
       </main>
     </div>

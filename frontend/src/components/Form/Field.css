@@ -1,0 +1,12 @@
+.ch-field {
+  display: grid;
+  gap: 8px;
+}
+
+.ch-fieldLabel {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: #000;
+  font-weight: 500;
+  text-transform: none;
+}

@@ -1,5 +1,5 @@
 import styles from "./Header.module.css";
-import logo from "../../assets/hi-lineLogo.avif";
+import logo from "../../assets/hilineLogo.png";
 
 export type NavKey =
   | "home"
