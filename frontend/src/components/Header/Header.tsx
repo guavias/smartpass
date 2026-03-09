@@ -37,8 +37,10 @@ const NAV: NavItem[] = [
       { label: "VIEW RESERVATION", href: "/find" },
     ],
   },
-  { key: "bookNow", label: "BOOK NOW", href: "/book" },
+  { key: "bookNow", label: "BOOK NOW", href: "/book-pass" },
 ];
+
+const CLICKABLE_TOP_LEVEL: NavKey[] = ["crappie"];
 
 export default function Header({
   activeKey = "crappie",
@@ -56,7 +58,12 @@ export default function Header({
         <nav className={styles.nav} aria-label="Primary navigation">
           {NAV.map((item) => {
             const isActive = item.key === activeKey;
+            const isClickableTopLevel = CLICKABLE_TOP_LEVEL.includes(item.key);
             const handleClick = (e: React.MouseEvent) => {
+              if (!isClickableTopLevel) {
+                e.preventDefault();
+                return;
+              }
               if (onNavigate) {
                 e.preventDefault();
                 onNavigate(item.href);
@@ -69,6 +76,7 @@ export default function Header({
                   <a
                     href={item.href}
                     onClick={handleClick}
+                    aria-disabled={!isClickableTopLevel}
                     className={`${styles.link} ${isActive ? styles.active : ""}`}
                   >
                     {item.label}
@@ -101,7 +109,8 @@ export default function Header({
               <a
                 key={item.key}
                 href={item.href}
-                onClick={onNavigate ? handleClick : undefined}
+                onClick={handleClick}
+                aria-disabled={!isClickableTopLevel}
                 className={`${styles.link} ${isActive ? styles.active : ""}`}
               >
                 {item.label}

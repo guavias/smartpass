@@ -102,11 +102,20 @@ export default function HeroPage() {
             </div>
 
             <div className={styles.cardFooter}>
+
               <button
                 className={styles.primaryBtn}
-                onClick={() => navigate("/book")}
+                onClick={() =>
+                  navigate("/book-pass", {
+                    state: {
+                      adults,
+                      children,
+                      range,
+                    },
+                  })
+                }
               >
-                Book Now
+                Book Pass
               </button>
 
               <div>

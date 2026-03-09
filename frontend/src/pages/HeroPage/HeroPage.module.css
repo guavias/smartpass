@@ -14,7 +14,7 @@
   background-repeat: no-repeat;
 }
 
-/* overlay tint */
+/*overlay tint*/
 .heroOverlay {
   position: absolute;
   inset: 0;
@@ -48,7 +48,12 @@
   flex-direction: column;
   overflow: visible;
   min-height: clamp(680px, 76vh, 740px);
-  padding: clamp(16px, 1.8vw, 22px);
+  --card-pad: clamp(18px, 2vw, 24px);
+  padding: var(--card-pad);
+  border-radius: 12px;
+  border: 1px solid #dedede;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+  background: #fff;
 
   transform-origin: top center;
   --scale-factor: 1;
@@ -58,19 +63,186 @@
 
 .cardBody {
   overflow: visible;
-  padding-right: 4px;
+  padding-right: 0;
 }
 
 .heroRow2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: clamp(10px, 1.4vw, 18px);
+  gap: clamp(12px, 1.6vw, 18px);
+}
+
+.heroCard :global(.ch-fieldLabel) {
+  font-size: 13px;
 }
 
 .calendarWrapper {
   width: 100%;
+  margin-left: 0;
+  margin-right: 0;
   transform: none;
-  margin-top: 14px;
+  margin-top: 16px;
+}
+
+.calendarWrapper :global(.chCalendarShell) {
+  width: 100%;
+  justify-items: stretch;
+  transform: none;
+}
+
+.calendarWrapper :global(.rdp) {
+  width: 100%;
+  margin: 0;
+  --rdp-cell-size: 64px;
+  position: relative;
+}
+
+.calendarWrapper :global(.rdp-month),
+.calendarWrapper :global(.rdp-month_grid),
+.calendarWrapper :global(.rdp-table) {
+  width: 100%;
+}
+
+.calendarWrapper :global(.rdp-month_grid),
+.calendarWrapper :global(.rdp-table) {
+  table-layout: fixed;
+  border-spacing: 8px;
+}
+
+.calendarWrapper :global(.rdp-weekdays) {
+  width: 100%;
+}
+
+.calendarWrapper :global(.rdp-day),
+.calendarWrapper :global(.rdp-cell) {
+  width: auto;
+  height: auto;
+  padding: 0;
+}
+
+.calendarWrapper :global(.rdp-day_button) {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.calendarWrapper :global(.rdp-day_outside .rdp-day_button),
+.calendarWrapper :global(.rdp-outside .rdp-day_button),
+.calendarWrapper :global(.rdp-day_button.rdp-outside) {
+  background: rgba(248, 246, 231, 0.5);
+  opacity: 1;
+  color: #000;
+}
+
+.calendarWrapper :global(.rdp-day_disabled .rdp-day_button),
+.calendarWrapper :global(.rdp-day_past .rdp-day_button),
+.calendarWrapper :global(.rdp-disabled .rdp-day_button),
+.calendarWrapper :global(.rdp-day_button.rdp-disabled) {
+  position: relative;
+  background: #F4F4F4;
+  color: #000;
+  cursor: not-allowed;
+}
+
+.calendarWrapper :global(.rdp-day_disabled .rdp-day_button::after),
+.calendarWrapper :global(.rdp-day_past .rdp-day_button::after),
+.calendarWrapper :global(.rdp-disabled .rdp-day_button::after),
+.calendarWrapper :global(.rdp-day_button.rdp-disabled::after) {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    #DEDEDE calc(50% - 1px),
+    #DEDEDE calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+  pointer-events: none;
+}
+
+.calendarWrapper :global(.rdp-caption) {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 0 8px 18px;
+  min-height: 64px;
+  z-index: 2;
+}
+
+.calendarWrapper :global(.rdp-caption_label) {
+  position: static;
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin: 0;
+  line-height: 1;
+  transform: none;
+  z-index: 2;
+}
+
+.calendarWrapper :global(.rdp-nav) {
+  position: absolute !important;
+  right: 8px;
+  top: 8px;
+  left: auto !important;
+  transform: none !important;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.calendarWrapper :global(.rdp-button_previous),
+.calendarWrapper :global(.rdp-button_next),
+.calendarWrapper :global(.rdp-nav_button) {
+  position: relative;
+  z-index: 3;
+  width: 41px;
+  height: 41px;
+  border: 0;
+  border-radius: 5px;
+  background: #51ABD5;
+  color: #fff;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendarWrapper :global(.rdp-chevron),
+.calendarWrapper :global(.rdp-nav_button svg),
+.calendarWrapper :global(.rdp-button_previous svg),
+.calendarWrapper :global(.rdp-button_next svg) {
+  stroke: #fff !important;
+  fill: #fff !important;
+  color: #fff !important;
+}
+
+.calendarWrapper :global(.rdp-chevron path),
+.calendarWrapper :global(.rdp-nav_button svg path),
+.calendarWrapper :global(.rdp-button_previous svg path),
+.calendarWrapper :global(.rdp-button_next svg path) {
+  fill: #fff !important;
+  stroke: #fff !important;
+}
+
+.calendarWrapper :global(.rdp-button_previous:hover),
+.calendarWrapper :global(.rdp-button_next:hover),
+.calendarWrapper :global(.rdp-nav_button:hover) {
+  background: #4598be;
+}
+
+.calendarWrapper :global(.rdp-button_previous[disabled]),
+.calendarWrapper :global(.rdp-button_next[disabled]),
+.calendarWrapper :global(.rdp-button_previous[aria-disabled="true"]),
+.calendarWrapper :global(.rdp-button_next[aria-disabled="true"]) {
+  display: none;
 }
 
 @media (max-height: 850px) {
@@ -85,14 +257,14 @@
 
 .input {
   width: 100%;
-  height: clamp(38px, 4.2vh, 44px);
-  border: 1px solid #DEDEDE;
-  border-radius: 6px;
+  height: 44px;
+  border: 1px solid #dedede;
+  border-radius: 8px;
   padding: 0 12px;
   background: #fff;
   font-family: inherit;
   font-size: 14px;
-  color: #000;
+  color: #111;
 }
 
 .stepperWrap {
@@ -103,8 +275,8 @@
   content: "";
   position: absolute;
   inset: 0;
-  border: 1px solid #DEDEDE;
-  border-radius: 6px;
+  border: 1px solid #dedede;
+  border-radius: 8px;
   pointer-events: none;
   z-index: 2;
 }
@@ -122,15 +294,15 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   border-left: 0;
-  border-top-right-radius: 6px;
-  border-bottom-right-radius: 6px;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
   overflow: hidden;
   background: #fff;
   z-index: 1;
 }
 
 .stepperBtn {
-  border: 1px solid #DEDEDE;
+  border: 1px solid #dedede;
   background: transparent;
   color: rgba(0,0,0,0.55);
   font-size: 16px;
@@ -149,38 +321,43 @@
 }
 
 .cardFooter {
-  margin-top: 18px;
+  margin-top: 16px;
   display: grid;
-  gap: 14px;
+  gap: 12px;
 }
 
 .primaryBtn {
   width: 100%;
-  height: 57px;
+  height: 52px;
   border: none;
-  border-radius: 8px;
-  background: #51ABD5;
+  border-radius: 10px;
+  background: #51abd5;
   color: #fff;
-  font-size: clamp(18px, 1.7vw, 22px);
-  font-weight: 700;
+  font-size: 18px;
+  font-weight: 900;
   cursor: pointer;
 }
 
 .existingText {
   font-size: 12px;
-  color: #485256;
+  color: #6b7280;
+  margin-bottom: 6px;
 }
 
 .secondaryBtn {
   width: 100%;
-  height: 55px;
-  border-radius: 6px;
+  height: 52px;
+  border-radius: 10px;
   background: #fff;
-  border: 2px solid #DEDEDE;
-  font-size: clamp(18px, 1.7vw, 22px);
-  font-weight: 700;
+  border: 1px solid #dedede;
+  font-size: 18px;
+  font-weight: 900;
   color: #000;
   cursor: pointer;
+}
+
+.secondaryBtn:hover {
+  background: rgba(0, 0, 0, 0.03);
 }
 
 /*right text*/

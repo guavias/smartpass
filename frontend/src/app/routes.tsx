@@ -2,11 +2,10 @@ import { createBrowserRouter } from "react-router-dom";
 import Shell from "./Shell";
 
 import HeroPage from "../pages/HeroPage/HeroPage";
-import BookingPage from "../pages/BookingPage";
 import ReservationFindPage from "../pages/ReservationFindPage";
 import ReservationDetailPage from "../pages/ReservationDetailPage";
 import AdminPage from "../pages/AdminPage";
-import BookPassPage from "../pages/BookPassPage";
+import BookPassPage from "../pages/BookPassPage/BookPassPage";
 
 export const router = createBrowserRouter([
   {
@@ -14,7 +13,6 @@ export const router = createBrowserRouter([
     element: <Shell />,
     children: [
       { index: true, element: <HeroPage /> },
-      { path: "book", element: <BookingPage /> },
       { path: "find", element: <ReservationFindPage /> },
       { path: "reservation/:id", element: <ReservationDetailPage /> },
       { path: "admin", element: <AdminPage /> },

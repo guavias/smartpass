@@ -3,8 +3,8 @@ import Header, { NavKey } from "../components/Header/Header";
 import { isEmbedMode } from "./embed";
 
 function activeKeyFromPath(pathname: string): NavKey {
-  if (pathname.startsWith("/book")) return "bookNow";
-  if (pathname.startsWith("/admin")) return "crappie"; // keep crappie highlighted
+  if (pathname.startsWith("/book") || pathname.startsWith("/book-pass")) return "crappie";
+  if (pathname.startsWith("/admin")) return "crappie"; //keep crappie highlighted
   if (pathname.startsWith("/find") || pathname.startsWith("/reservation")) return "crappie";
   return "crappie";
 }
