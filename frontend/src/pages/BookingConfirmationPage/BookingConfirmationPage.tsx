@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Card from "../../components/Card/Card";
 import styles from "./BookingConfirmationPage.module.css";
@@ -38,6 +38,9 @@ export default function BookingConfirmationPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as ConfirmationState | null;
+  const [isQrOpen, setIsQrOpen] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState(60);
 
   //mock info
   const data: ConfirmationState = state ?? {
@@ -62,6 +65,31 @@ export default function BookingConfirmationPage() {
       data.days === 1 ? "day" : "days"
     })`;
   }, [data.startDateISO, data.endDateISO, data.days]);
+
+  const qrPayload = useMemo(() => {
+    return `reservation:${data.reservationId}|tick:${refreshTick}`;
+  }, [data.reservationId, refreshTick]);
+
+  const qrImageUrl = useMemo(() => {
+    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrPayload)}`;
+  }, [qrPayload]);
+
+  useEffect(() => {
+    if (!isQrOpen) return;
+
+    setSecondsLeft(60);
+    const interval = window.setInterval(() => {
+      setSecondsLeft((prev) => {
+        if (prev <= 1) {
+          setRefreshTick((tick) => tick + 1);
+          return 60;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isQrOpen]);
 
   return (
     <div className={styles.page}>
@@ -151,7 +179,7 @@ export default function BookingConfirmationPage() {
             <button
               className={styles.primaryBtnWide}
               type="button"
-              onClick={() => navigate(`/reservation/${encodeURIComponent(data.reservationId)}`)}
+              onClick={() => setIsQrOpen(true)}
             >
               View Your Pass Here
             </button>
@@ -173,6 +201,30 @@ export default function BookingConfirmationPage() {
             </div>
           </Card>
         </div>
+
+        {isQrOpen && (
+          <div className={styles.qrOverlay} role="dialog" aria-modal="true" aria-label="Pass QR code">
+            <div className={styles.qrModalCard}>
+              <h2 className={styles.qrTitle}>Crappie House Access</h2>
+
+              <div className={styles.qrFrame}>
+                <img src={qrImageUrl} alt="Reservation QR code" className={styles.qrImage} />
+              </div>
+
+              <p className={styles.qrTimer}>
+                QR refreshes in <span>{secondsLeft}s</span>
+              </p>
+
+              <p className={styles.qrHelp}>
+                Hold the QR code up to the scanner at the Crappie House dock.
+              </p>
+
+              <button className={styles.qrCloseBtn} type="button" onClick={() => setIsQrOpen(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
