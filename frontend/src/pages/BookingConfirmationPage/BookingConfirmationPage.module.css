@@ -24,6 +24,13 @@
   line-height: 1.5;
 }
 
+.contactLine {
+  margin: -10px 0 22px;
+  color: #c5362e;
+  font-size: 18px;
+  line-height: 1.45;
+}
+
 .bold {
   font-weight: 800;
 }

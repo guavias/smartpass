@@ -7,6 +7,7 @@ type ConfirmationState = {
   reservationId: string;
   passUrl: string;
   email: string;
+  preferredContact?: "Email" | "Phone";
 
   //booking details
   firstName: string;
@@ -34,6 +35,12 @@ function formatPrettyDate(iso: string) {
   return d.toLocaleDateString(undefined, opts);
 }
 
+function maskPhone(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length < 4) return phone;
+  const last4 = digits.slice(-4);
+  return `(***) ***-${last4}`;
+}
 export default function BookingConfirmationPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,6 +54,7 @@ export default function BookingConfirmationPage() {
     reservationId: "CH-9F2K1A",
     passUrl: `${window.location.origin}/pass/CH-9F2K1A`,
     email: "john@email.com",
+    preferredContact: "Email",
     firstName: "John",
     lastName: "Smith",
     phone: "(469) 555-0137",
@@ -66,6 +74,11 @@ export default function BookingConfirmationPage() {
     })`;
   }, [data.startDateISO, data.endDateISO, data.days]);
 
+  const preferred = data.preferredContact ?? "Email";
+  const contactLine =
+    preferred === "Email"
+      ? `We sent a secure link to access your day pass to ${data.email}.`
+      : `We texted a secure link to access your day pass to ${maskPhone(data.phone ?? "")}.`;
   const qrPayload = useMemo(() => {
     return `reservation:${data.reservationId}|tick:${refreshTick}`;
   }, [data.reservationId, refreshTick]);
@@ -101,6 +114,7 @@ export default function BookingConfirmationPage() {
           <br />
           A confirmation and receipt has been sent to <span className={styles.bold}>{data.email}</span>.
         </p>
+        <p className={styles.contactLine}>{contactLine}</p>
 
         {/*top button*/}
         <div className={styles.ctaRow}>

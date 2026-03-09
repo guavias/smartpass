@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import dayjs, { Dayjs } from "dayjs";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
@@ -73,6 +73,26 @@ function parseQuantity(raw: string) {
   const n = Number(raw);
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.round(n));
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function formatPhoneInput(value: string, keepTrailingHyphen = true) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length < 3) return digits;
+  if (digits.length === 3) return keepTrailingHyphen ? `${digits}-` : digits;
+  if (digits.length < 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  if (digits.length === 6) {
+    return keepTrailingHyphen ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-` : `${digits.slice(0, 3)}-${digits.slice(3, 6)}`;
+  }
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function isValidPhone(phone: string) {
+  return /^\d{3}-\d{3}-\d{4}$/.test(phone);
 }
 
 function coerceDate(value: unknown) {
@@ -216,6 +236,8 @@ export default function BookPassPage() {
   const [bookingDatesInput, setBookingDatesInput] = useState<string>("");
   const [calendarAnchor, setCalendarAnchor] = useState<HTMLElement | null>(null);
   const [pendingStart, setPendingStart] = useState<Date | undefined>(undefined);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const phoneDeleteKeyRef = useRef(false);
 
   const adults = parseQuantity(adultsInput);
   const children = parseQuantity(childrenInput);
@@ -301,6 +323,36 @@ export default function BookPassPage() {
 
   //mock pay
   function handlePay() {
+    const nextErrors: Record<string, string> = {};
+    const trimmedFirst = firstName.trim();
+    const trimmedLast = lastName.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
+
+    if (!trimmedFirst) nextErrors.firstName = "First name is required.";
+    if (!trimmedLast) nextErrors.lastName = "Last name is required.";
+    if (!startDate || !endDate) nextErrors.bookingDates = "Booking dates are required.";
+    if (!trimmedEmail) {
+      nextErrors.email = "Email is required.";
+    } else if (!isValidEmail(trimmedEmail)) {
+      nextErrors.email = "Email must be in a valid format (name@email.com).";
+    }
+
+    if (!trimmedPhone) {
+      nextErrors.phone = "Phone number is required.";
+    } else if (!isValidPhone(trimmedPhone)) {
+      nextErrors.phone = "Phone number must be in xxx-xxx-xxxx format.";
+    }
+
+    if (adults + children < 1) {
+      nextErrors.guests = "At least one guest is required.";
+    }
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
     const safeStartDate = startDate ?? today;
     const safeEndDate = endDate ?? safeStartDate;
     const reservationId = `CH-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
@@ -309,10 +361,11 @@ export default function BookPassPage() {
       state: {
         reservationId,
         passUrl: `${window.location.origin}/pass/${reservationId}`,
-        email: email.trim() || "guest@placeholder.com",
-        firstName: firstName.trim() || "Guest",
-        lastName: lastName.trim() || "User",
-        phone: phone.trim() || undefined,
+        email: trimmedEmail,
+        preferredContact,
+        firstName: trimmedFirst,
+        lastName: trimmedLast,
+        phone: trimmedPhone,
         adults,
         children,
         startDateISO: safeStartDate.toISOString().slice(0, 10),
@@ -339,20 +392,28 @@ export default function BookPassPage() {
             <div className={styles.formGrid}>
               <Field label="FIRST NAME">
                 <input
-                  className={styles.input}
+                  className={`${styles.input} ${errors.firstName ? styles.inputError : ""}`}
                   value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  onChange={(e) => {
+                    setFirstName(e.target.value);
+                    if (errors.firstName) setErrors((prev) => ({ ...prev, firstName: "" }));
+                  }}
                   placeholder="First Name"
                 />
+                {errors.firstName && <div className={styles.fieldError}>{errors.firstName}</div>}
               </Field>
 
               <Field label="LAST NAME">
                 <input
-                  className={styles.input}
+                  className={`${styles.input} ${errors.lastName ? styles.inputError : ""}`}
                   value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
+                  onChange={(e) => {
+                    setLastName(e.target.value);
+                    if (errors.lastName) setErrors((prev) => ({ ...prev, lastName: "" }));
+                  }}
                   placeholder="Last Name"
                 />
+                {errors.lastName && <div className={styles.fieldError}>{errors.lastName}</div>}
               </Field>
 
               <Field label="# OF ADULTS">
@@ -429,14 +490,18 @@ export default function BookPassPage() {
                     </button>
                   </div>
                 </div>
+                {errors.guests && <div className={styles.fieldError}>{errors.guests}</div>}
               </Field>
 
               <div className={styles.fullRow}>
                 <Field label="BOOKING DATES">
                   <input
-                    className={`${styles.input} ${styles.bookingDateInput}`}
+                    className={`${styles.input} ${styles.bookingDateInput} ${errors.bookingDates ? styles.inputError : ""}`}
                     value={bookingDatesInput}
-                    onChange={(e) => setBookingDatesInput(e.target.value)}
+                    onChange={(e) => {
+                      setBookingDatesInput(e.target.value);
+                      if (errors.bookingDates) setErrors((prev) => ({ ...prev, bookingDates: "" }));
+                    }}
                     onBlur={commitBookingDatesInput}
                     onClick={(e) => setCalendarAnchor(e.currentTarget)}
                     placeholder="MM/DD/YYYY - MM/DD/YYYY"
@@ -476,30 +541,44 @@ export default function BookPassPage() {
                   <div className={styles.helper}>
                     {formatRange(startDate, endDate)} · {days} {days === 1 ? "day" : "days"} selected
                   </div>
+                  {errors.bookingDates && <div className={styles.fieldError}>{errors.bookingDates}</div>}
                 </Field>
               </div>
 
               <div className={styles.fullRow}>
                 <Field label="EMAIL">
                   <input
-                    className={styles.input}
+                    className={`${styles.input} ${errors.email ? styles.inputError : ""}`}
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+                    }}
                     placeholder="Enter your email"
                     inputMode="email"
                   />
+                  {errors.email && <div className={styles.fieldError}>{errors.email}</div>}
                 </Field>
               </div>
 
               <div className={styles.fullRow}>
                 <Field label="PHONE NUMBER">
                   <input
-                    className={styles.input}
+                    className={`${styles.input} ${errors.phone ? styles.inputError : ""}`}
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Phone Number"
+                    onKeyDown={(e) => {
+                      phoneDeleteKeyRef.current = e.key === "Backspace" || e.key === "Delete";
+                    }}
+                    onChange={(e) => {
+                      setPhone(formatPhoneInput(e.target.value, !phoneDeleteKeyRef.current));
+                      phoneDeleteKeyRef.current = false;
+                      if (errors.phone) setErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                    placeholder="xxx-xxx-xxxx"
                     inputMode="tel"
+                    maxLength={12}
                   />
+                  {errors.phone && <div className={styles.fieldError}>{errors.phone}</div>}
                 </Field>
               </div>
 
