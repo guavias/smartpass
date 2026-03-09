@@ -301,10 +301,28 @@ export default function BookPassPage() {
 
   //mock pay
   function handlePay() {
-    //later implementation: call backend to create payment + reservation, then confirm payment with Square SDK
-    if (!firstName.trim() || !lastName.trim()) return alert("Please enter your first and last name.");
-    if (!email.trim()) return alert("Please enter your email.");
-    alert("Frontend-only placeholder: payment flow will be connected to Square via backend.");
+    const safeStartDate = startDate ?? today;
+    const safeEndDate = endDate ?? safeStartDate;
+    const reservationId = `CH-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+    navigate("/booking-confirmation", {
+      state: {
+        reservationId,
+        passUrl: `${window.location.origin}/pass/${reservationId}`,
+        email: email.trim() || "guest@placeholder.com",
+        firstName: firstName.trim() || "Guest",
+        lastName: lastName.trim() || "User",
+        phone: phone.trim() || undefined,
+        adults,
+        children,
+        startDateISO: safeStartDate.toISOString().slice(0, 10),
+        endDateISO: safeEndDate.toISOString().slice(0, 10),
+        days,
+        subtotal: pricing.subtotal,
+        tax: pricing.tax,
+        total: pricing.total,
+      },
+    });
   }
 
   return (

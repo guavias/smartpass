@@ -172,16 +172,19 @@
 
 .breakdown {
   margin-top: 10px;
+  border: 1px solid #dedede;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
 }
 
 .breakdownSummary {
   list-style: none;
   cursor: pointer;
   padding: 12px 12px;
-  border: 1px solid #dedede;
-  border-radius: 10px;
   background: #f7f7f7;
   font-weight: 700;
+  border-bottom: 1px solid #dedede;
 }
 
 .breakdown summary::-webkit-details-marker {
@@ -189,9 +192,9 @@
 }
 
 .breakdownBox {
-  margin-top: 10px;
-  border: 1px solid #dedede;
-  border-radius: 12px;
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
   padding: 14px;
   background: #fff;
 }

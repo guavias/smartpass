@@ -1,0 +1,179 @@
+import { useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import Card from "../../components/Card/Card";
+import styles from "./BookingConfirmationPage.module.css";
+
+type ConfirmationState = {
+  reservationId: string;
+  passUrl: string;
+  email: string;
+
+  //booking details
+  firstName: string;
+  lastName: string;
+  phone?: string;
+
+  adults: number;
+  children: number;
+  startDateISO: string;
+  endDateISO: string;  
+  days: number;
+
+  subtotal: number;
+  tax: number;
+  total: number;
+};
+
+function money(n: number) {
+  return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+}
+
+function formatPrettyDate(iso: string) {
+  const d = new Date(iso + "T00:00:00");
+  const opts: Intl.DateTimeFormatOptions = { weekday: "short", month: "short", day: "2-digit", year: "numeric" };
+  return d.toLocaleDateString(undefined, opts);
+}
+
+export default function BookingConfirmationPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const state = location.state as ConfirmationState | null;
+
+  //mock info
+  const data: ConfirmationState = state ?? {
+    reservationId: "CH-9F2K1A",
+    passUrl: `${window.location.origin}/pass/CH-9F2K1A`,
+    email: "john@email.com",
+    firstName: "John",
+    lastName: "Smith",
+    phone: "(469) 555-0137",
+    adults: 2,
+    children: 1,
+    startDateISO: "2026-02-01",
+    endDateISO: "2026-02-03",
+    days: 3,
+    subtotal: 120,
+    tax: 9.90,
+    total: 129.90,
+  };
+
+  const dateRangeText = useMemo(() => {
+    return `${formatPrettyDate(data.startDateISO)} – ${formatPrettyDate(data.endDateISO)} (${data.days} ${
+      data.days === 1 ? "day" : "days"
+    })`;
+  }, [data.startDateISO, data.endDateISO, data.days]);
+
+  return (
+    <div className={styles.page}>
+      <div className={styles.inner}>
+        <h1 className={styles.title}>Booking Confirmation</h1>
+
+        <p className={styles.subtitle}>
+          Your Crappie House Day Pass has been booked.
+          <br />
+          A confirmation and receipt has been sent to <span className={styles.bold}>{data.email}</span>.
+        </p>
+
+        {/*top button*/}
+        <div className={styles.ctaRow}>
+          <button className={styles.ghostBtn} type="button" onClick={() => navigate("/")}>
+            Book Another Pass
+          </button>
+        </div>
+
+        <div className={styles.grid}>
+          {/*left*/}
+          <Card className={styles.card}>
+            <div className={styles.cardTitle}>Booking Summary</div>
+
+            <div className={styles.summaryGrid}>
+              <div className={styles.label}>Reservation ID</div>
+              <div className={styles.value}>
+                <span className={styles.mono}>{data.reservationId}</span>
+              </div>
+
+              <div className={styles.label}>Name</div>
+              <div className={styles.value}>
+                {data.firstName} {data.lastName}
+              </div>
+
+              <div className={styles.label}>Dates</div>
+              <div className={styles.value}>{dateRangeText}</div>
+
+              <div className={styles.label}>Guests</div>
+              <div className={styles.value}>
+                {data.adults} adult{data.adults === 1 ? "" : "s"}, {data.children} child
+                {data.children === 1 ? "" : "ren"}
+              </div>
+
+              <div className={styles.label}>Contact</div>
+              <div className={styles.value}>
+                {data.email}
+                {data.phone ? <div className={styles.muted}>{data.phone}</div> : null}
+              </div>
+
+              <div className={styles.label}>Total Paid</div>
+              <div className={styles.value}>
+                <span className={styles.total}>{money(data.total)}</span>
+              </div>
+
+              <div className={styles.label}>Paid With</div>
+              <div className={styles.value}>Card ending in xxxx</div>
+            </div>
+
+            <div className={styles.breakdown}>
+              <div className={styles.breakdownSummary}>Price Breakdown</div>
+              <div className={styles.breakdownBox}>
+                <div className={styles.row}>
+                  <span>Subtotal</span>
+                  <span>{money(data.subtotal)}</span>
+                </div>
+                <div className={styles.row}>
+                  <span>Tax</span>
+                  <span>{money(data.tax)}</span>
+                </div>
+                <div className={styles.divider} />
+                <div className={styles.rowStrong}>
+                  <span>Total</span>
+                  <span>{money(data.total)}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/*right*/}
+          <Card className={styles.card}>
+            <div className={styles.cardTitle}>Access Your Pass</div>
+            <p className={styles.small}>
+              Your pass QR is protected and is only visible while your pass is active.
+            </p>
+
+            <button
+              className={styles.primaryBtnWide}
+              type="button"
+              onClick={() => navigate(`/reservation/${encodeURIComponent(data.reservationId)}`)}
+            >
+              View Your Pass Here
+            </button>
+
+            <div className={styles.passSecurityBox}>
+              <div className={styles.passSecurityTitle}>Pass Security</div>
+              <ul className={styles.passSecurityList}>
+                <li>QR code appears only when the pass is active.</li>
+                <li>QR code refreshes automatically every minute.</li>
+              </ul>
+            </div>
+
+            <div className={styles.support}>
+              Questions? Email{" "}
+              <a className={styles.link} href="mailto:info@hi-line-resort.com">
+                info@hi-line-resort.com
+              </a>{" "}
+              and include your reservation ID <span className={styles.mono}>{data.reservationId}</span>.
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
