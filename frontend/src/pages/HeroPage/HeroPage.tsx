@@ -4,7 +4,6 @@ import Card from "../../components/Card/Card";
 import Field from "../../components/Form/Field";
 import DaysRangePicker from "../../components/Form/DaysRangePicker";
 import styles from "./HeroPage.module.css";
-import heroBg from "../../assets/hero-bg.jpg";
 
 export default function HeroPage() {
   const [adults, setAdults] = useState(2);
@@ -18,7 +17,7 @@ export default function HeroPage() {
   }
 
   return (
-    <div className={styles.hero} style={{ backgroundImage: `url(${heroBg})` }}>
+    <div className={`${styles.hero} chSharedHeroBg`}>
       <div className={styles.heroOverlay} />
 
       <div className={styles.heroInner}>
