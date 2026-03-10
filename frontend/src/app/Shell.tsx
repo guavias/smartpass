@@ -1,5 +1,6 @@
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import Header, { NavKey } from "../components/Header/Header";
+import Footer from "../components/Footer/Footer";
 import { isEmbedMode } from "./embed";
 
 function activeKeyFromPath(pathname: string): NavKey {
@@ -25,9 +26,11 @@ export default function Shell() {
         />
       )}
 
-      <main style={{ padding: embed ? 0 : "0 24px 24px" }}>
+      <main style={{ padding: embed ? 0 : "0 24px 0" }}>
         <Outlet />
       </main>
+
+      {!embed && <Footer />}
     </div>
   );
 }
