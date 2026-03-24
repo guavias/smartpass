@@ -151,3 +151,162 @@
   background: transparent;
   color: var(--hi-red);
 }
+
+.dropdownItemActive {
+  color: var(--hi-red);
+}
+
+.mobileBar,
+.mobileMenu {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .inner {
+    padding: 10px 12px;
+    display: block;
+  }
+
+  .logo,
+  .nav {
+    display: none;
+  }
+
+  .mobileBar {
+    display: grid;
+    grid-template-columns: 44px 1fr 44px;
+    align-items: center;
+    width: 100%;
+  }
+
+  .mobileBarSpacer {
+    width: 44px;
+    height: 44px;
+    display: block;
+  }
+
+  .mobileLogo {
+    height: 62px;
+    width: auto;
+    justify-self: center;
+    display: block;
+  }
+
+  .mobileMenuBtn {
+    width: 44px;
+    height: 44px;
+    border: 0;
+    background: transparent;
+    display: grid;
+    align-content: center;
+    justify-items: center;
+    gap: 5px;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .mobileMenuLine {
+    width: 22px;
+    height: 2px;
+    background: #2f3a3f;
+    border-radius: 2px;
+  }
+
+  .mobileMenu {
+    display: none;
+    margin-top: 6px;
+    background: var(--nav-bg);
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overflow: hidden;
+  }
+
+  .mobileMenuOpen {
+    display: block;
+  }
+
+  .mobileMenuItem {
+    display: block;
+    width: 100%;
+    padding: 12px 14px;
+    text-decoration: none;
+    color: #111;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .mobileMenu > .mobileMenuItem:first-child {
+    border-top: 0;
+  }
+
+  .mobileMenuGroup {
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .mobileMenuGroupHeader {
+    position: relative;
+    display: block;
+  }
+
+  .mobileMenuGroupHeader .mobileMenuItem {
+    border-top: 0;
+    padding-left: 42px;
+    padding-right: 42px;
+  }
+
+  .mobileChevronBtn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 42px;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    display: grid;
+    place-items: center;
+    color: #4b5563;
+    font-size: 18px;
+    cursor: pointer;
+    transition: transform 120ms ease;
+    outline: none;
+    box-shadow: none;
+  }
+
+  .mobileChevronOpen {
+    transform: rotate(180deg);
+  }
+
+  .mobileSubmenu {
+    background: rgba(246, 241, 232, 0.7);
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+  }
+
+  .mobileSubmenuItem {
+    display: block;
+    padding: 10px 20px;
+    text-decoration: none;
+    color: #2b2b2b;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-align: center;
+    border-top: 1px solid rgba(0, 0, 0, 0.04);
+  }
+
+  .mobileSubmenuItemActive {
+    color: var(--hi-red);
+  }
+
+  .mobileSubmenuItem:first-child {
+    border-top: 0;
+  }
+
+  .mobileMenuItem:hover,
+  .mobileSubmenuItem:hover {
+    color: var(--hi-red);
+  }
+}

@@ -29,7 +29,7 @@
   margin: 0 auto;
 
   display: grid;
-  grid-template-columns: minmax(340px, 480px) 1fr;
+  grid-template-columns: minmax(420px, 640px) 1fr;
   gap: clamp(18px, 3vw, 64px);
   align-items: flex-start;
 
@@ -400,7 +400,11 @@
   }
 
   .heroCard {
+    width: 92vw;
+    max-width: 92vw;
     max-height: none;
+    transform: none;
+    --scale-factor: 1;
   }
 
   .cardBody {
@@ -425,4 +429,11 @@
 }
 @media (max-height: 480px) {
   .heroCard { --scale-factor: 0.64; }
+}
+
+@media (max-width: 980px) {
+  .heroCard {
+    --scale-factor: 1;
+    transform: none;
+  }
 }

@@ -56,7 +56,7 @@
 }
 
 .card {
-  width: min(640px, 92vw);
+  width: min(960px, 92vw);
   padding: 50px 30px 50px;
   border-radius: 12px;
   background: #fff;
@@ -152,4 +152,12 @@
 }
 @media (max-height: 480px) {
   .card { --scale-factor: 0.64; }
+}
+
+@media (max-width: 980px) {
+  .card {
+    width: 92vw;
+    --scale-factor: 1;
+    transform: none;
+  }
 }
