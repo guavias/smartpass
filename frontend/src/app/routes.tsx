@@ -3,7 +3,7 @@ import Shell from "./Shell";
 
 import HeroPage from "../pages/HeroPage/HeroPage";
 import ReservationFindPage from "../pages/ReservationFindPage/ReservationFindPage";
-import ReservationDetailPage from "../pages/ReservationDetailPage";
+import ReservationDetailPage from "../pages/ReservationDetailPage/ReservationDetailPage";
 import AdminPage from "../pages/AdminPage";
 import BookPassPage from "../pages/BookPassPage/BookPassPage";
 import BookingConfirmationPage from "../pages/BookingConfirmationPage/BookingConfirmationPage";

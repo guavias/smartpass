@@ -163,8 +163,8 @@ export default function BookingConfirmationPage() {
               <div className={styles.value}>Card ending in xxxx</div>
             </div>
 
-            <div className={styles.breakdown}>
-              <div className={styles.breakdownSummary}>Price Breakdown</div>
+            <details className={styles.breakdown} open>
+              <summary className={styles.breakdownSummary}>Price Breakdown</summary>
               <div className={styles.breakdownBox}>
                 <div className={styles.row}>
                   <span>Subtotal</span>
@@ -180,7 +180,7 @@ export default function BookingConfirmationPage() {
                   <span>{money(data.total)}</span>
                 </div>
               </div>
-            </div>
+            </details>
           </Card>
 
           {/*right*/}
