@@ -107,29 +107,29 @@ export default function BookingConfirmationPage() {
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
-        <h1 className={styles.title}>Booking Confirmation</h1>
+        <h1 className={styles.title}>Day Pass Confirmation</h1>
 
         <p className={styles.subtitle}>
-          Your Crappie House Day Pass has been booked.
+          Your Crappie House Day Pass has been purchased.
           <br />
-          A confirmation and receipt has been sent to <span className={styles.bold}>{data.email}</span>.
+          A pass receipt has been sent to <span className={styles.bold}>{data.email}</span>.
         </p>
         <p className={styles.contactLine}>{contactLine}</p>
 
         {/*top button*/}
         <div className={styles.ctaRow}>
           <button className={styles.ghostBtn} type="button" onClick={() => navigate("/")}>
-            Book Another Pass
+            Purchase Another Pass
           </button>
         </div>
 
         <div className={styles.grid}>
           {/*left*/}
           <Card className={styles.card}>
-            <div className={styles.cardTitle}>Booking Summary</div>
+            <div className={styles.cardTitle}>Pass Summary</div>
 
             <div className={styles.summaryGrid}>
-              <div className={styles.label}>Reservation ID</div>
+              <div className={styles.label}>Pass ID</div>
               <div className={styles.value}>
                 <span className={styles.mono}>{data.reservationId}</span>
               </div>
@@ -211,7 +211,7 @@ export default function BookingConfirmationPage() {
               <a className={styles.link} href="mailto:info@hi-line-resort.com">
                 info@hi-line-resort.com
               </a>{" "}
-              and include your reservation ID <span className={styles.mono}>{data.reservationId}</span>.
+              and include your pass ID <span className={styles.mono}>{data.reservationId}</span>.
             </div>
           </Card>
         </div>
@@ -222,7 +222,7 @@ export default function BookingConfirmationPage() {
               <h2 className={styles.qrTitle}>Crappie House Access</h2>
 
               <div className={styles.qrFrame}>
-                <img src={qrImageUrl} alt="Reservation QR code" className={styles.qrImage} />
+                <img src={qrImageUrl} alt="Day pass QR code" className={styles.qrImage} />
               </div>
 
               <p className={styles.qrTimer}>

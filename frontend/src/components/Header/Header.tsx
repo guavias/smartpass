@@ -35,8 +35,8 @@ const NAV: NavItem[] = [
     label: "CRAPPIE HOUSE ACCESS",
     href: "/",
     dropdown: [
-      { label: "BOOK PASS", href: "/book-pass" },
-      { label: "VIEW RESERVATION", href: "/find" },
+      { label: "PURCHASE PASS", href: "/book-pass" },
+      { label: "VIEW DAY PASS", href: "/find" },
     ],
   },
   { key: "bookNow", label: "BOOK NOW", href: "/book-pass" },

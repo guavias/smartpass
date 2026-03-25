@@ -118,12 +118,12 @@ export default function HeroPage() {
               </button>
 
               <div>
-                <div className={styles.existingText}>Already have a reservation?</div>
+                <div className={styles.existingText}>Already purchased a day pass?</div>
                 <button
                   className={styles.secondaryBtn}
                   onClick={() => navigate("/find")}
                 >
-                  View Reservation
+                  View Day Pass
                 </button>
               </div>
             </div>
@@ -132,7 +132,7 @@ export default function HeroPage() {
 
         <div className={styles.heroRight}>
           <h1 className={styles.heroTitle}>
-            RESERVE YOUR<br />CRAPPIE HOUSE PASS
+            PURCHASE YOUR<br />DAY PASS NOW
           </h1>
 
           <div className={styles.heroInfo}>

@@ -331,7 +331,7 @@ export default function BookPassPage() {
 
     if (!trimmedFirst) nextErrors.firstName = "First name is required.";
     if (!trimmedLast) nextErrors.lastName = "Last name is required.";
-    if (!startDate || !endDate) nextErrors.bookingDates = "Booking dates are required.";
+    if (!startDate || !endDate) nextErrors.bookingDates = "Access dates are required.";
     if (!trimmedEmail) {
       nextErrors.email = "Email is required.";
     } else if (!isValidEmail(trimmedEmail)) {
@@ -381,13 +381,13 @@ export default function BookPassPage() {
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
-        <h1 className={styles.title}>Complete Your Reservation</h1>
-        <p className={styles.subtitle}>Fill in your details to reserve your Crappie House pass.</p>
+        <h1 className={styles.title}>Purchase Your Day Pass</h1>
+        <p className={styles.subtitle}>Fill in your details to purchase Crappie House access.</p>
 
         <div className={styles.grid}>
           {/*left card*/}
           <Card className={styles.card}>
-            <div className={styles.cardHeader}>Reservation Details</div>
+            <div className={styles.cardHeader}>Pass Details</div>
 
             <div className={styles.formGrid}>
               <Field label="FIRST NAME">
@@ -494,7 +494,7 @@ export default function BookPassPage() {
               </Field>
 
               <div className={styles.fullRow}>
-                <Field label="BOOKING DATES">
+                <Field label="ACCESS DATES">
                   <input
                     className={`${styles.input} ${styles.bookingDateInput} ${errors.bookingDates ? styles.inputError : ""}`}
                     value={bookingDatesInput}
@@ -666,7 +666,7 @@ export default function BookPassPage() {
               </button>
 
               <div className={styles.payFinePrint}>
-                Payments will be processed by Square. Your reservation is confirmed after successful payment.
+                Payments will be processed by Square. Your day pass is active after successful payment.
               </div>
             </div>
           </Card>

@@ -83,11 +83,11 @@ export default function ReservationDetailPage() {
       <div className={styles.overlay} />
 
       <div className={styles.inner}>
-        <h1 className={styles.title}>Your Reservation</h1>
+        <h1 className={styles.title}>Your Day Pass</h1>
         <p className={styles.subtitle}>Scan your QR code to access the Crappie House.</p>
 
         <Card className={styles.card}>
-          <p className={styles.resIdLabel}>Reservation #</p>
+          <p className={styles.resIdLabel}>Pass #</p>
           <p className={styles.resIdValue}>{reservationId}</p>
 
           <div className={styles.guestRow}>
@@ -161,7 +161,7 @@ export default function ReservationDetailPage() {
             <h2 className={styles.qrTitle}>Crappie House Access</h2>
 
             <div className={styles.qrFrame}>
-              <img src={qrImageUrl} alt="Reservation QR code" className={styles.qrImage} />
+              <img src={qrImageUrl} alt="Day pass QR code" className={styles.qrImage} />
             </div>
 
             <p className={styles.qrTimer}>

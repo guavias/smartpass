@@ -108,7 +108,7 @@ export default function DaysRangePicker({
 return (
   <div className="chFormGrid">
     <div className="chField">
-      <div className="ch-fieldLabel">BOOKING DATES</div>
+      <div className="ch-fieldLabel">ACCESS DATES</div>
     </div>
 
     {/* Calendar */}
