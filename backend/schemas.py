@@ -1,6 +1,7 @@
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
 from datetime import datetime
+from typing import Literal, Optional
+
+from pydantic import BaseModel, EmailStr, Field
 
 
 # ============ Visitor & Guest Models ============
@@ -14,13 +15,23 @@ class VisitorBase(BaseModel):
 class VisitorCreate(VisitorBase):
     payment_amount: float
     payment_method: str = "card"  # e.g., "card", "cash"
+    num_days: int = Field(default=1, ge=1, le=30)
+    access_start: Optional[datetime] = None
+    payment_source_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 
 class VisitorResponse(VisitorBase):
     id: str
-    qr_code: str
+    portal_token: str
+    portal_url: str
+    pass_type: Literal["visitor"] = "visitor"
     created_at: datetime
-    expires_at: datetime
+    access_start: datetime
+    access_end: datetime
+    payment_status: str
+    payment_reference: Optional[str] = None
+    qr_refresh_seconds: int = 60
     access_granted: bool = False
 
 
@@ -38,10 +49,19 @@ class GuestCreate(GuestBase):
 
 class GuestResponse(GuestBase):
     id: str
-    qr_code: str
+    portal_token: str
+    portal_url: str
+    pass_type: Literal["guest"] = "guest"
     created_at: datetime
-    expires_at: datetime
+    access_start: datetime
+    access_end: datetime
+    qr_refresh_seconds: int = 60
     access_granted: bool = False
+
+
+class GuestLookupRequest(BaseModel):
+    email: EmailStr
+    reservation_id: str
 
 
 # ============ QR & Pass Models ============
@@ -58,11 +78,47 @@ class Pass(BaseModel):
     id: str
     user_id: str
     user_type: str
-    qr_code: str
+    portal_token: str
+    token_seed: str
+    reservation_id: Optional[str] = None
+    payment_reference: Optional[str] = None
+    payment_status: str = "not_required"
     status: str  # "active", "used", "expired", "revoked"
     created_at: datetime
-    expires_at: datetime
+    access_start: datetime
+    access_end: datetime
+    qr_refresh_seconds: int = 60
     used_at: Optional[datetime] = None
+
+
+class PortalAccessResponse(BaseModel):
+    pass_id: str
+    portal_token: str
+    user_type: Literal["visitor", "guest"]
+    holder_name: str
+    access_start: datetime
+    access_end: datetime
+    status: str
+    qr_refresh_seconds: int = 60
+
+
+class RotatingQRResponse(BaseModel):
+    qr_payload: str
+    generated_at: datetime
+    valid_until: datetime
+    refresh_seconds: int = 60
+
+
+class ValidateQRRequest(BaseModel):
+    qr_payload: str
+    gate_location: str = "main_dock"
+
+
+class ValidateQRResponse(BaseModel):
+    status: Literal["approved", "expired", "invalid", "revoked"]
+    pass_id: Optional[str] = None
+    user_type: Optional[str] = None
+    access_end: Optional[datetime] = None
 
 
 class GateAccessLog(BaseModel):
@@ -151,3 +207,10 @@ class SystemLog(BaseModel):
     details: dict
     timestamp: datetime
     status: str  # "success", "failed"
+
+
+class PaymentResult(BaseModel):
+    success: bool
+    status: str
+    transaction_id: Optional[str] = None
+    error: Optional[str] = None

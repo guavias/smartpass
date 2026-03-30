@@ -1,0 +1,28 @@
+# Python cache and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+backend/venv/
+
+# Environment and secrets
+.env
+*.env
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+
+# Logs and local artifacts
+*.log
+.pytest_cache/
+.mypy_cache/
+.vscode/
+
+# Frontend dependencies/builds
+frontend/node_modules/
+frontend/dist/
+frontend/build/

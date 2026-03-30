@@ -34,6 +34,62 @@ class EmailService:
     """Service for sending emails via Resend API"""
 
     @staticmethod
+    def send_portal_access_email(
+        recipient_email: str,
+        recipient_name: str,
+        portal_url: str,
+        user_type: str,
+        access_start: datetime,
+        access_end: datetime,
+    ) -> dict:
+        """Send portal access link where rotating QR is displayed."""
+        if not _init_resend():
+            logger.error("Resend API key not configured. Check RESEND_API_KEY.")
+            return {"success": False, "error": "Email service not configured"}
+
+        try:
+            window_label = "Day Pass" if user_type == "visitor" else "Reservation Access"
+            start_formatted = access_start.strftime("%I:%M %p on %B %d, %Y")
+            end_formatted = access_end.strftime("%I:%M %p on %B %d, %Y")
+
+            html_body = f"""
+            <html>
+                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                    <h2 style="color: #1f4b99;">Smart Pass Portal Link</h2>
+                    <p>Hi {recipient_name},</p>
+                    <p>Your {window_label} is ready. Use the secure portal below to access your rotating QR code.</p>
+
+                    <p style="margin: 25px 0;">
+                        <a href="{portal_url}" style="background: #1f4b99; color: white; text-decoration: none; padding: 12px 18px; border-radius: 6px; display: inline-block;">
+                            Open QR Portal
+                        </a>
+                    </p>
+
+                    <div style="background: #eef5ff; border-left: 4px solid #1f4b99; padding: 12px;">
+                        <p style="margin: 0;"><strong>Access start:</strong> {start_formatted}</p>
+                        <p style="margin: 0;"><strong>Access end:</strong> {end_formatted}</p>
+                        <p style="margin: 6px 0 0 0;">QR rotates every 60 seconds while your access window is active.</p>
+                    </div>
+                </body>
+            </html>
+            """
+
+            response = resend.Emails.send(
+                {
+                    "from": "Smart Pass <onboarding@resend.dev>",
+                    "to": [recipient_email],
+                    "subject": "Your SmartPass Portal Link",
+                    "html": html_body,
+                }
+            )
+
+            logger.info(f"Portal link email sent to {recipient_email}")
+            return {"success": True, "email_id": response.get("id")}
+        except Exception as e:
+            logger.error(f"Failed to send portal email to {recipient_email}: {str(e)}")
+            return {"success": False, "error": str(e)}
+
+    @staticmethod
     def send_qr_code_email(
         recipient_email: str,
         recipient_name: str,

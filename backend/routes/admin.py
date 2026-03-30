@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from datetime import datetime
 import logging
 
+from database import find_passes_by_email, get_access_logs as db_get_access_logs, get_access_logs_total
 from schemas import AccessOverride, SystemLog
 
 logger = logging.getLogger(__name__)
@@ -63,12 +64,13 @@ async def get_access_logs(limit: int = 100, offset: int = 0):
     Retrieve gate access logs (QR scans and validation results)
     """
     try:
-        # TODO: Fetch from MongoDB with pagination
+        logs = await db_get_access_logs(limit=limit, offset=offset)
+        total = await get_access_logs_total()
         logger.info(f"Fetching {limit} access logs with offset {offset}")
         
         return {
-            "access_logs": [],
-            "total": 0,
+            "access_logs": logs,
+            "total": total,
             "limit": limit,
             "offset": offset,
         }
@@ -82,10 +84,10 @@ async def get_access_logs(limit: int = 100, offset: int = 0):
 async def get_user_profile(user_id: str):
     """Get user profile and pass history"""
     try:
-        # TODO: Fetch user details and all associated passes from MongoDB
+        passes = await find_passes_by_email(user_id, limit=20)
         return {
             "user_id": user_id,
-            "passes": [],
+            "passes": passes,
             "access_history": [],
         }
     
