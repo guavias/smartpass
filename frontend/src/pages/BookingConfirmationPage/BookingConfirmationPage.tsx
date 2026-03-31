@@ -50,9 +50,9 @@ export default function BookingConfirmationPage() {
   const [secondsLeft, setSecondsLeft] = useState(60);
 
   //mock info
-  const data: ConfirmationState = state ?? {
-    reservationId: "CH-9F2K1A",
-    passUrl: `${window.location.origin}/pass/CH-9F2K1A`,
+  const baseData: ConfirmationState = state ?? {
+    reservationId: "1234567",
+    passUrl: `${window.location.origin}/pass/1234567`,
     email: "john@email.com",
     preferredContact: "Email",
     firstName: "John",
@@ -66,6 +66,12 @@ export default function BookingConfirmationPage() {
     subtotal: 120,
     tax: 9.90,
     total: 129.90,
+  };
+
+  const data: ConfirmationState = {
+    ...baseData,
+    reservationId: "1234567",
+    passUrl: `${window.location.origin}/pass/1234567`,
   };
 
   const dateRangeText = useMemo(() => {

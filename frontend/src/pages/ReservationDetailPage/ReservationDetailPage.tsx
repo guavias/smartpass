@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import Card from "../../components/Card/Card";
 import personIcon from "../../assets/person.png";
 import styles from "./ReservationDetailPage.module.css";
@@ -24,14 +24,13 @@ function formatTimeLabel(iso: string, endOfDay = false) {
 }
 
 export default function ReservationDetailPage() {
-  const { id } = useParams();
   const location = useLocation();
   const state = (location.state as LookupState | null) ?? {};
   const [isQrOpen, setIsQrOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(60);
 
-  const reservationId = id ?? "12345678";
+  const reservationId = "1234567";
   const guestLast = state.lastName?.trim() || "Doe";
   const guestName = `John ${guestLast}`;
 

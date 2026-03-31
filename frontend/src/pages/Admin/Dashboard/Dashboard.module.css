@@ -1,0 +1,423 @@
+.page {
+  min-height: 100vh;
+  padding: 0;
+  background: #ffffff;
+  color: #0f172a;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+}
+
+.header {
+  max-width: 100%;
+  margin: 0 0 14px 0;
+  padding: 20px;
+  grid-column: 2;
+}
+
+.title {
+  margin: 0 0 12px;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.kpi {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.kpi span {
+  display: block;
+  font-size: 12px;
+  color: #475569;
+}
+
+.kpi strong {
+  font-size: 22px;
+}
+.panel {
+  max-width: 100%;
+  margin: 0 20px 12px 20px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.panelTitle {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.headerTop {
+  display: flex;
+  justify-content: flex-start;
+  margin-bottom: 8px;
+}
+
+.logoutBtn {
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  padding: 0 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.logoutBtn:hover {
+  background: #f8fafc;
+}
+
+.denialList {
+  margin: 0;
+  padding-left: 18px;
+}
+.muted {
+  color: #64748b;
+}
+
+.workspace {
+  max-width: 100%;
+  margin: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0;
+  grid-column: 2;
+}
+
+.contentPane {
+  min-width: 0;
+  padding: 0 20px 20px 20px;
+}
+
+.leftSidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 240px;
+  height: 100vh;
+  background: #f9f6f0;
+  border-right: 1px solid #e2e8f0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.sidebarLogo {
+  text-align: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.logoImage {
+  width: 100%;
+  max-width: 140px;
+  height: auto;
+  object-fit: contain;
+}
+
+.logoPlaceholder {
+  display: none;
+}
+
+.logoSubtitle {
+  display: none;
+}
+
+.sidebarTime {
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  color: #0f172a;
+}
+
+.sidebarUser {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 8px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.userIcon {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.userInfo {
+  flex: 1;
+}
+
+.userName {
+  font-weight: 700;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.userId {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.sidebarNav {
+  display: grid;
+  gap: 8px;
+}
+
+.sidebarLogoutBtn {
+  margin-top: auto;
+  width: 100%;
+}
+
+.sideBtn,
+.sideBtnActive {
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px;
+  height: 40px;
+  padding: 0 12px;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #0f172a;
+  transition: all 0.2s ease;
+}
+
+.sideBtn:hover {
+  background: rgba(29, 78, 216, 0.05);
+}
+
+.sideBtnActive {
+  border-color: #d97706;
+  background: rgba(217, 119, 6, 0.1);
+  color: #d97706;
+}
+
+.navIcon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: 1.5fr repeat(3, minmax(140px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.input,
+.select {
+  width: 100%;
+  height: 36px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 10px;
+  font: inherit;
+}
+
+.tableWrap {
+  overflow: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 980px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 9px 8px;
+  font-size: 14px;
+}
+
+.pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pillActive {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.pillExpired {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.pillUpcoming {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.pillRevoked {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.allow {
+  color: #166534;
+}
+
+.deny {
+  color: #b91c1c;
+}
+
+.linkBtn {
+  border: 0;
+  background: transparent;
+  color: #1d4ed8;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  justify-content: flex-end;
+  z-index: 20;
+}
+
+.drawer {
+  width: min(520px, 100vw);
+  height: 100vh;
+  background: #fff;
+  padding: 16px;
+  overflow: auto;
+}
+
+.drawerTitle {
+  margin: 0 0 12px;
+}
+
+.subTitle {
+  margin: 14px 0 8px;
+}
+
+.group {
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.formGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.formGrid label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.logList {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
+.drawerActions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  height: 36px;
+  border-radius: 8px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.primaryBtn {
+  border: 0;
+  background: #1d4ed8;
+  color: #fff;
+}
+
+.secondaryBtn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+@media (max-width: 980px) {
+  .page {
+    grid-template-columns: 1fr;
+  }
+
+  .header {
+    grid-column: 1;
+  }
+
+  .panel {
+    grid-column: 1;
+  }
+
+  .kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .workspace {
+    grid-column: 1;
+    grid-template-columns: 1fr;
+  }
+
+  .leftSidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    border-right: none;
+    border-bottom: 1px solid #e2e8f0;
+    display: block;
+  }
+
+  .sidebarNav {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sidebarLogoutBtn {
+    margin-top: 12px;
+  }
+
+  .filters {
+    grid-template-columns: 1fr;
+  }
+}
