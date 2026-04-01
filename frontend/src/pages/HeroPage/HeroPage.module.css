@@ -1,0 +1,439 @@
+.hero {
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  width: 100vw;
+
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+/*overlay tint*/
+.heroOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(160, 170, 180, 0.55);
+}
+
+.heroInner {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  width: min(1200px, 92vw);
+  margin: 0 auto;
+
+  display: grid;
+  grid-template-columns: minmax(420px, 640px) 1fr;
+  gap: clamp(18px, 3vw, 64px);
+  align-items: flex-start;
+
+  padding: clamp(12px, 2.2vw, 40px) 0;
+}
+
+/*left column*/
+.heroLeft {
+  display: flex;
+  align-items: flex-start; 
+}
+
+.heroCard {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+  min-height: clamp(680px, 76vh, 740px);
+  --card-pad: clamp(18px, 2vw, 24px);
+  padding: var(--card-pad);
+  border-radius: 12px;
+  border: 1px solid #dedede;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.1);
+  background: #fff;
+
+  transform-origin: top center;
+  --scale-factor: 1;
+  transform: scale(var(--scale-factor));
+  transition: transform 0.2s ease;
+}
+
+.cardBody {
+  overflow: visible;
+  padding-right: 0;
+}
+
+.heroRow2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: clamp(12px, 1.6vw, 18px);
+}
+
+.heroCard :global(.ch-fieldLabel) {
+  font-size: 13px;
+}
+
+.calendarWrapper {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  transform: none;
+  margin-top: 16px;
+}
+
+.calendarWrapper :global(.chCalendarShell) {
+  width: 100%;
+  justify-items: stretch;
+  transform: none;
+}
+
+.calendarWrapper :global(.rdp) {
+  width: 100%;
+  margin: 0;
+  --rdp-cell-size: 64px;
+  position: relative;
+}
+
+.calendarWrapper :global(.rdp-month),
+.calendarWrapper :global(.rdp-month_grid),
+.calendarWrapper :global(.rdp-table) {
+  width: 100%;
+}
+
+.calendarWrapper :global(.rdp-month_grid),
+.calendarWrapper :global(.rdp-table) {
+  table-layout: fixed;
+  border-spacing: 8px;
+}
+
+.calendarWrapper :global(.rdp-weekdays) {
+  width: 100%;
+}
+
+.calendarWrapper :global(.rdp-day),
+.calendarWrapper :global(.rdp-cell) {
+  width: auto;
+  height: auto;
+  padding: 0;
+}
+
+.calendarWrapper :global(.rdp-day_button) {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+}
+
+.calendarWrapper :global(.rdp-day_outside .rdp-day_button),
+.calendarWrapper :global(.rdp-outside .rdp-day_button),
+.calendarWrapper :global(.rdp-day_button.rdp-outside) {
+  background: rgba(248, 246, 231, 0.5);
+  opacity: 1;
+  color: #000;
+}
+
+.calendarWrapper :global(.rdp-day_disabled .rdp-day_button),
+.calendarWrapper :global(.rdp-day_past .rdp-day_button),
+.calendarWrapper :global(.rdp-disabled .rdp-day_button),
+.calendarWrapper :global(.rdp-day_button.rdp-disabled) {
+  position: relative;
+  background: #F4F4F4;
+  color: #000;
+  cursor: not-allowed;
+}
+
+.calendarWrapper :global(.rdp-day_disabled .rdp-day_button::after),
+.calendarWrapper :global(.rdp-day_past .rdp-day_button::after),
+.calendarWrapper :global(.rdp-disabled .rdp-day_button::after),
+.calendarWrapper :global(.rdp-day_button.rdp-disabled::after) {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    #DEDEDE calc(50% - 1px),
+    #DEDEDE calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+  pointer-events: none;
+}
+
+.calendarWrapper :global(.rdp-caption) {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  padding: 0 8px 18px;
+  min-height: 64px;
+  z-index: 2;
+}
+
+.calendarWrapper :global(.rdp-caption_label) {
+  position: static;
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin: 0;
+  line-height: 1;
+  transform: none;
+  z-index: 2;
+}
+
+.calendarWrapper :global(.rdp-nav) {
+  position: absolute !important;
+  right: 8px;
+  top: 8px;
+  left: auto !important;
+  transform: none !important;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  z-index: 3;
+  pointer-events: auto;
+}
+
+.calendarWrapper :global(.rdp-button_previous),
+.calendarWrapper :global(.rdp-button_next),
+.calendarWrapper :global(.rdp-nav_button) {
+  position: relative;
+  z-index: 3;
+  width: 41px;
+  height: 41px;
+  border: 0;
+  border-radius: 5px;
+  background: #51ABD5;
+  color: #fff;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calendarWrapper :global(.rdp-chevron),
+.calendarWrapper :global(.rdp-nav_button svg),
+.calendarWrapper :global(.rdp-button_previous svg),
+.calendarWrapper :global(.rdp-button_next svg) {
+  stroke: #fff !important;
+  fill: #fff !important;
+  color: #fff !important;
+}
+
+.calendarWrapper :global(.rdp-chevron path),
+.calendarWrapper :global(.rdp-nav_button svg path),
+.calendarWrapper :global(.rdp-button_previous svg path),
+.calendarWrapper :global(.rdp-button_next svg path) {
+  fill: #fff !important;
+  stroke: #fff !important;
+}
+
+.calendarWrapper :global(.rdp-button_previous:hover),
+.calendarWrapper :global(.rdp-button_next:hover),
+.calendarWrapper :global(.rdp-nav_button:hover) {
+  background: #4598be;
+}
+
+.calendarWrapper :global(.rdp-button_previous[disabled]),
+.calendarWrapper :global(.rdp-button_next[disabled]),
+.calendarWrapper :global(.rdp-button_previous[aria-disabled="true"]),
+.calendarWrapper :global(.rdp-button_next[aria-disabled="true"]) {
+  display: none;
+}
+
+@media (max-height: 850px) {
+  .calendarWrapper { transform: none; }
+}
+@media (max-height: 750px) {
+  .calendarWrapper { transform: none; }
+}
+@media (max-height: 650px) {
+  .calendarWrapper { transform: none; }
+}
+
+.input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #dedede;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  color: #111;
+}
+
+.stepperWrap {
+  position: relative;
+}
+
+.stepperWrap::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid #dedede;
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.stepperInput {
+  padding-right: 64px;
+}
+
+.stepperBtns {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 56px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-left: 0;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+  z-index: 1;
+}
+
+.stepperBtn {
+  border: 1px solid #dedede;
+  background: transparent;
+  color: rgba(0,0,0,0.55);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.stepperBtn:first-child {
+  border-right: 0;
+}
+
+.stepperBtn:hover {
+  background: rgba(0,0,0,0.04);
+}
+
+.cardFooter {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.primaryBtn {
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: 10px;
+  background: #51abd5;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.existingText {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.secondaryBtn {
+  width: 100%;
+  height: 52px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid #dedede;
+  font-size: 18px;
+  font-weight: 900;
+  color: #000;
+  cursor: pointer;
+}
+
+.secondaryBtn:hover {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+/*right text*/
+.heroRight {
+  max-width: 720px;
+  align-self: center;
+}
+
+.heroTitle {
+  margin: 0;
+  color: #c5362e;
+  font-family: "Poppins", sans-serif;
+  font-size: clamp(30px, 4.8vw, 56px);
+  font-weight: 800; /* extra bold */
+  letter-spacing: 0.04em;
+  line-height: 1.05;
+  text-transform: uppercase;
+  text-shadow: 0 3px 6px rgba(0,0,0,0.3);
+}
+
+.heroInfo {
+  margin-top: 14px;
+  font-size: clamp(13px, 1.4vw, 16px);
+  color: #111;
+  line-height: 1.5;
+}
+
+/*mobile scrolling*/
+@media (max-width: 980px) {
+  .hero {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .heroInner {
+    grid-template-columns: 1fr;
+    width: min(980px, 92vw);
+    padding: 24px 0;
+  }
+
+  .heroCard {
+    width: 92vw;
+    max-width: 92vw;
+    max-height: none;
+    transform: none;
+    --scale-factor: 1;
+  }
+
+  .cardBody {
+    overflow: visible;
+  }
+}
+
+@media (max-height: 950px) {
+  .heroCard { --scale-factor: 0.93; }
+}
+@media (max-height: 850px) {
+  .heroCard { --scale-factor: 0.87; }
+}
+@media (max-height: 750px) {
+  .heroCard { --scale-factor: 0.81; }
+}
+@media (max-height: 650px) {
+  .heroCard { --scale-factor: 0.75; }
+}
+@media (max-height: 550px) {
+  .heroCard { --scale-factor: 0.69; }
+}
+@media (max-height: 480px) {
+  .heroCard { --scale-factor: 0.64; }
+}
+
+@media (max-width: 980px) {
+  .heroCard {
+    --scale-factor: 1;
+    transform: none;
+  }
+}

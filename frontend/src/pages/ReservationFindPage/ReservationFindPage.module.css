@@ -1,0 +1,163 @@
+.page {
+  --hero-stage-height: calc(clamp(680px, 76vh, 740px) + (2 * clamp(12px, 2.2vw, 40px)));
+
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+  width: 100vw;
+
+  height: var(--hero-stage-height);
+  min-height: var(--hero-stage-height);
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+@media (max-width: 980px) {
+  .page {
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(160, 170, 180, 0.55);
+}
+
+.inner {
+  position: relative;
+  z-index: 1;
+  width: min(1200px, 92vw);
+  margin: 0 auto;
+  padding: clamp(32px, 4vw, 70px) 0;
+  display: grid;
+  justify-items: center;
+}
+
+.title {
+  margin: 0;
+  color: #111;
+  font-size: clamp(32px, 3.5vw, 48px);
+  font-weight: 800;
+  text-align: center;
+}
+
+.subtitle {
+  margin: 8px 0 20px;
+  color: #1f2937;
+  font-size: 18px;
+  text-align: center;
+}
+
+.card {
+  width: min(960px, 92vw);
+  padding: 50px 30px 50px;
+  border-radius: 12px;
+  background: #fff;
+  transform-origin: top center;
+  --scale-factor: 1;
+  transform: scale(var(--scale-factor));
+  transition: transform 0.2s ease;
+}
+
+.cardTitle {
+  margin: 0 0 16px;
+  font-size: 24px;
+  font-weight: 700;
+  color: #111;
+}
+
+.form {
+  display: grid;
+  gap: 12px;
+}
+
+.label {
+  font-size: 14px;
+  color: #111;
+  font-weight: 700;
+}
+
+.input {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #dedede;
+  border-radius: 6px;
+  padding: 0 12px;
+  font-family: inherit;
+  font-size: 16px;
+}
+
+.inputError {
+  border-color: #c5362e;
+}
+
+.error {
+  margin-top: -6px;
+  color: #c5362e;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.primaryBtn {
+  margin-top: 6px;
+  width: 100%;
+  height: 50px;
+  border: 0;
+  border-radius: 6px;
+  background: #51abd5;
+  color: #fff;
+  font-size: 20px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.footerText {
+  margin-top: 2px;
+  text-align: center;
+  color: #374151;
+  font-size: 16px;
+}
+
+.bookLink {
+  color: #c5362e;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.bookLink:hover {
+  text-decoration: underline;
+}
+
+@media (max-height: 950px) {
+  .card { --scale-factor: 0.93; }
+}
+@media (max-height: 850px) {
+  .card { --scale-factor: 0.87; }
+}
+@media (max-height: 750px) {
+  .card { --scale-factor: 0.81; }
+}
+@media (max-height: 650px) {
+  .card { --scale-factor: 0.75; }
+}
+@media (max-height: 550px) {
+  .card { --scale-factor: 0.69; }
+}
+@media (max-height: 480px) {
+  .card { --scale-factor: 0.64; }
+}
+
+@media (max-width: 980px) {
+  .card {
+    width: 92vw;
+    --scale-factor: 1;
+    transform: none;
+  }
+}

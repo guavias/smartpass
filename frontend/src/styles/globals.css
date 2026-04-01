@@ -1,0 +1,333 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;500;700;800&display=swap");
+@import "react-day-picker/style.css";
+
+html, body {
+  height: 100%;
+  width: 100%;
+}
+
+:root {
+  height: 100%;
+  width: 100%;
+  --hi-red: #c5362e;
+  --nav-bg: #f6f1e8;
+  --text: #111;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; padding: 0; overflow-x: hidden; font-family: "Poppins", system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
+
+.chSharedHeroBg {
+  background-image: url("../assets/hero-bg.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.rdp, .rdp * {
+  font-family: inherit;
+}
+
+.rdp {
+  font-size: 0.95rem;
+}
+
+.noSpinnerInput::-webkit-outer-spin-button,
+.noSpinnerInput::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.noSpinnerInput[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.noSpinnerInput:focus,
+.noSpinnerInput:focus-visible {
+  outline: none;
+  box-shadow: none;
+  border-color: #DEDEDE;
+}
+
+:root{
+  --ch-border: #DEDEDE;
+  --ch-border-soft: rgba(0,0,0,0.10);
+  --ch-muted: rgba(0,0,0,0.55);
+  --ch-text: #111;
+  --ch-blue: rgba(77, 136, 179, 0.85);
+  --ch-blue-weak: rgba(77, 136, 179, 0.14);
+  --ch-disabled: rgba(0,0,0,0.18);
+}
+
+.chFormGrid{
+  display: grid;
+  gap: 20px;
+}
+
+.chField{
+  display: grid;
+  gap: 10px;
+}
+
+.chLabel{
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  color: #000;
+  font-weight: 500;
+}
+
+.chInput{
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--ch-border);
+  border-radius: 6px;
+  padding: 0 12px;
+  background: #fff;
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--ch-text);
+}
+
+.chInput:focus{
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(77, 136, 179, 0.18);
+  border-color: rgba(77, 136, 179, 0.45);
+}
+
+.chStepperWrap{
+  position: relative;
+}
+
+.chStepperWrap::after{
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--ch-border);
+  border-radius: 6px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.chStepperInput{
+  padding-right: 64px; /*space for +/- area*/
+}
+
+.chStepperBtns{
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  width: 56px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-left: 0;
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.chStepperBtns,
+.stepperBtns{
+  z-index: 1;
+}
+
+.chStepperBtn{
+  border: 1px solid #DEDEDE;
+  background: transparent;
+  color: rgba(0,0,0,0.55);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+}
+
+.chStepperBtn:first-child{
+  border-right: 0;
+}
+
+.chStepperBtn:hover{
+  background: rgba(0,0,0,0.04);
+}
+
+.chStepperBtn:active{
+  background: rgba(0,0,0,0.07);
+}
+
+.chCalendarShell{
+  border: 0;
+  border-radius: 0;
+  padding: 12px 0 0 0;
+  background: #fff;
+  transform-origin: top left;
+  transform: scale(1);
+  width: 100%;
+  display: grid;
+  justify-items: center;
+}
+
+.chHelperText{
+  margin-top: 12px;
+  font-size: 13px;
+  color: #485256;
+  font-weight: 500;
+  justify-self: start;
+}
+
+@media (max-height: 850px){
+  .chCalendarShell{
+    transform: scale(0.94);
+    width: calc(100% / 0.94);
+  }
+}
+
+@media (max-height: 750px){
+  .chCalendarShell{
+    transform: scale(0.9);
+    width: calc(100% / 0.9);
+  }
+}
+
+@media (max-height: 650px){
+  .chCalendarShell{
+    transform: scale(0.86);
+    width: calc(100% / 0.86);
+  }
+}
+
+/*overall sizing*/
+.rdp{
+  --rdp-cell-size: 50px;
+  margin: 0 auto;
+  font-size: 1rem;
+}
+
+.rdp-month_grid,
+.rdp-table{
+  border-collapse: separate;
+  border-spacing: 5px;
+}
+
+.rdp-weeks,
+.rdp-month_grid{
+  margin: 0 auto;
+}
+
+.rdp-day,
+.rdp-cell{
+  width: var(--rdp-cell-size);
+  height: var(--rdp-cell-size);
+  padding: 0;
+}
+
+/*month header*/
+.rdp-caption{
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0 0 14px;
+  min-height: 60px;
+}
+
+.rdp-caption_label{
+  font-weight: 700;
+  color: #111;
+  letter-spacing: 0;
+  font-size: 30px;
+  line-height: 1;
+}
+
+/*nav buttons*/
+.rdp-nav{
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  padding: 0;
+  gap: 0;
+}
+
+.rdp-nav_button{
+  width: 46px;
+  height: 46px;
+  border: 0;
+  border-radius: 4px;
+  background: #97B8C7;
+  color: #fff;
+  padding: 0;
+  font-size: 24px;
+  pointer-events: auto;
+}
+
+.rdp-nav_button:hover{
+  background: #8dadbe;
+}
+
+/* weekday row */
+.rdp-weekday{
+  font-size: 12px;
+  color: #2f3942;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-bottom: 8px;
+}
+
+.rdp-day_button{
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 0;
+  border: 0;
+  background: #F8F6E7;
+  font-weight: 500;
+  color: #7d8e97;
+  font-size: 17px;
+  box-shadow: none;
+}
+
+/*default hover on available days*/
+.rdp-day_button:hover{
+  background: #f0eddd;
+}
+
+/*past/disabled days*/
+.rdp-day_disabled .rdp-day_button{
+  background:
+    linear-gradient(135deg, transparent 47%, #dddddd 48%, #dddddd 52%, transparent 53%),
+    #F4F4F4;
+  color: rgba(0,0,0,0.28);
+  cursor: not-allowed;
+}
+
+/*outside days*/
+.rdp-day_outside .rdp-day_button{
+  opacity: 0.45;
+}
+
+.rdp-range_start .rdp-day_button,
+.rdp-range_end .rdp-day_button,
+.rdp-range_middle .rdp-day_button,
+.rdp-day_range_start .rdp-day_button,
+.rdp-day_range_end .rdp-day_button,
+.rdp-day_range_middle .rdp-day_button,
+.rdp-day_selected .rdp-day_button{
+  background: #97B8C7;
+  color: #fff;
+}
+
+.rdp-day_today .rdp-day_button{
+  box-shadow: none;
+}
