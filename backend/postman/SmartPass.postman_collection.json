@@ -1,0 +1,215 @@
+{
+  "info": {
+    "_postman_id": "f2f1dd43-9016-4698-b8de-45b9f7bf673b",
+    "name": "SmartPass Backend",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Create Visitor Pass (Card)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "if (json.portal_token) {",
+              "  pm.collectionVariables.set('portalToken', json.portal_token);",
+              "}",
+              "if (json.id) {",
+              "  pm.collectionVariables.set('passId', json.id);",
+              "}",
+              "if (json.payment_reference) {",
+              "  pm.collectionVariables.set('paymentReference', json.payment_reference);",
+              "}",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Postman Test Visitor\",\n  \"email\": \"postman.visitor@example.com\",\n  \"phone\": \"555-555-1212\",\n  \"vehicle_info\": \"ABC-123\",\n  \"payment_amount\": 1.0,\n  \"payment_method\": \"card\",\n  \"num_days\": 1,\n  \"payment_source_id\": \"cnon:card-nonce-ok\",\n  \"idempotency_key\": \"postman-test-001\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/visitors/",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "visitors",
+            ""
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Portal Metadata",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/access/portal/{{portalToken}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "access",
+            "portal",
+            "{{portalToken}}"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Rotating QR Payload",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', function () {",
+              "  pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const json = pm.response.json();",
+              "if (json.qr_payload) {",
+              "  pm.collectionVariables.set('qrPayload', json.qr_payload);",
+              "}",
+              ""
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/access/portal/{{portalToken}}/qr",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "access",
+            "portal",
+            "{{portalToken}}",
+            "qr"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Get Rotating QR Image (PNG)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/access/portal/{{portalToken}}/qr-image",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "access",
+            "portal",
+            "{{portalToken}}",
+            "qr-image"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Validate QR Payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"qr_payload\": \"{{qrPayload}}\",\n  \"gate_location\": \"main_gate\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/v1/access/validate",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "access",
+            "validate"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8000"
+    },
+    {
+      "key": "portalToken",
+      "value": ""
+    },
+    {
+      "key": "qrPayload",
+      "value": ""
+    },
+    {
+      "key": "passId",
+      "value": ""
+    },
+    {
+      "key": "paymentReference",
+      "value": ""
+    }
+  ]
+}
