@@ -242,6 +242,23 @@
   gap: 10px;
 }
 
+.squareStatus {
+  font-size: 12px;
+  color: #6b7280;
+  line-height: 1.35;
+}
+
+.squareCardShell {
+  border: 1px solid #dedede;
+  border-radius: 10px;
+  background: #fff;
+  padding: 12px;
+}
+
+.squareCardContainer {
+  min-height: 44px;
+}
+
 .walletBtn {
   height: 44px;
   border-radius: 10px;

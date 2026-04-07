@@ -192,6 +192,71 @@ class AdminUser(BaseModel):
     created_at: datetime
 
 
+class AdminLoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class AdminLoginResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int
+    admin_id: str
+    role: str
+    name: str
+
+
+class AdminPassItem(BaseModel):
+    pass_id: str
+    reservation_id: Optional[str] = None
+    guest_name: str
+    email: str
+    phone: Optional[str] = None
+    pass_type: str
+    status: str
+    start_at: datetime
+    end_at: datetime
+    adults: int = 0
+    children: int = 0
+    vehicle_info: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class AdminPassListResponse(BaseModel):
+    items: list[AdminPassItem]
+    total: int
+    page: int
+    page_size: int
+
+
+class AdminPassPatchRequest(BaseModel):
+    status: Optional[str] = None
+    access_start: Optional[datetime] = None
+    access_end: Optional[datetime] = None
+    phone: Optional[str] = None
+    vehicle_info: Optional[str] = None
+
+
+class AdminAccessLogItem(BaseModel):
+    event_id: str
+    timestamp: datetime
+    pass_id: Optional[str] = None
+    reservation_id: Optional[str] = None
+    guest_name: Optional[str] = None
+    location: str
+    result: str
+    reason: Optional[str] = None
+    scanner_id: Optional[str] = None
+
+
+class AdminAccessLogListResponse(BaseModel):
+    items: list[AdminAccessLogItem]
+    total: int
+    page: int
+    page_size: int
+
+
 class AccessOverride(BaseModel):
     user_id: str
     override_reason: str

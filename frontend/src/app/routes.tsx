@@ -16,9 +16,12 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <HeroPage /> },
       { path: "find", element: <ReservationFindPage /> },
-      { path: "reservation/:id", element: <ReservationDetailPage /> },
+      { path: "reservation/find", element: <ReservationFindPage /> },
       { path: "book-pass", element: <BookPassPage /> },
+      { path: "book", element: <BookPassPage /> },
       { path: "booking-confirmation", element: <BookingConfirmationPage /> },
+      { path: "confirmation", element: <BookingConfirmationPage /> },
+      { path: "reservation/:id", element: <ReservationDetailPage /> },
     ],
   },
   {

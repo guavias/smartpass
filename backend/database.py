@@ -129,3 +129,91 @@ async def get_access_logs(limit: int = 100, offset: int = 0) -> list[dict[str, A
 async def get_access_logs_total() -> int:
 	db = get_database()
 	return await db.access_logs.count_documents({})
+
+
+def _date_bounds(start_date: Optional[datetime], end_date: Optional[datetime]) -> dict[str, Any]:
+	if start_date is None and end_date is None:
+		return {}
+	bounds: dict[str, Any] = {}
+	if start_date is not None:
+		bounds["$gte"] = start_date
+	if end_date is not None:
+		bounds["$lte"] = end_date
+	return bounds
+
+
+async def query_admin_passes(
+	search: Optional[str] = None,
+	status: Optional[str] = None,
+	pass_type: Optional[str] = None,
+	start_date: Optional[datetime] = None,
+	end_date: Optional[datetime] = None,
+	limit: int = 25,
+	offset: int = 0,
+) -> tuple[list[dict[str, Any]], int]:
+	db = get_database()
+	query: dict[str, Any] = {}
+
+	if search:
+		search_regex = {"$regex": search, "$options": "i"}
+		query["$or"] = [
+			{"id": search_regex},
+			{"reservation_id": search_regex},
+			{"name": search_regex},
+			{"email": search_regex},
+			{"phone": search_regex},
+		]
+
+	if status:
+		query["status"] = status.lower()
+
+	if pass_type:
+		normalized_pass_type = pass_type.lower()
+		if normalized_pass_type in {"visitor", "guest"}:
+			query["user_type"] = normalized_pass_type
+
+	date_query = _date_bounds(start_date, end_date)
+	if date_query:
+		query["access_start"] = date_query
+
+	total = await db.passes.count_documents(query)
+	cursor = db.passes.find(query).sort("created_at", DESCENDING).skip(offset).limit(limit)
+	items = [_normalize(doc) for doc in await cursor.to_list(length=limit)]
+	return items, total
+
+
+async def query_admin_access_logs(
+	search: Optional[str] = None,
+	result: Optional[str] = None,
+	location: Optional[str] = None,
+	start_date: Optional[datetime] = None,
+	end_date: Optional[datetime] = None,
+	limit: int = 25,
+	offset: int = 0,
+) -> tuple[list[dict[str, Any]], int]:
+	db = get_database()
+	query: dict[str, Any] = {}
+
+	if search:
+		search_regex = {"$regex": search, "$options": "i"}
+		query["$or"] = [
+			{"pass_id": search_regex},
+			{"user_id": search_regex},
+			{"gate_location": search_regex},
+			{"validation_result": search_regex},
+		]
+
+	if result:
+		query["validation_result"] = result.lower()
+
+	if location:
+		query["gate_location"] = location
+
+	time_query = _date_bounds(start_date, end_date)
+	if time_query:
+		query["timestamp"] = time_query
+
+	total = await db.access_logs.count_documents(query)
+	cursor = db.access_logs.find(query).sort("timestamp", DESCENDING).skip(offset).limit(limit)
+	items = [_normalize(doc) for doc in await cursor.to_list(length=limit)]
+	return items, total

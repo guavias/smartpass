@@ -1,42 +1,76 @@
 import { FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Card from "../../components/Card/Card";
+import { findGuestPortal, getVisitorPass } from "../../api/reservations";
+import { ApiError } from "../../api/client";
 import styles from "./ReservationFindPage.module.css";
-
-function toReservationId(email: string, lastName: string) {
-  const em = email.trim().toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
-  const ln = lastName.trim().toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 8);
-  const token = `${em}${ln}` || "guest";
-  return `PASS-${token.toUpperCase()}`;
-}
 
 export default function ReservationFindPage() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [errors, setErrors] = useState<{ email?: string; lastName?: string }>({});
+  const [reservationId, setReservationId] = useState("");
+  const [errors, setErrors] = useState<{ email?: string; reservationId?: string; submit?: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
-    const nextErrors: { email?: string; lastName?: string } = {};
+    const nextErrors: { email?: string; reservationId?: string } = {};
     const trimmedEmail = email.trim();
-    const trimmedLast = lastName.trim();
+    const trimmedReservationId = reservationId.trim();
 
     if (!trimmedEmail) {
       nextErrors.email = "Email is required.";
     }
-    if (!trimmedLast) {
-      nextErrors.lastName = "Last name is required.";
+    if (!trimmedReservationId) {
+      nextErrors.reservationId = "Reservation ID is required.";
     }
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    const reservationId = toReservationId(trimmedEmail, trimmedLast);
-    navigate(`/reservation/${encodeURIComponent(reservationId)}`, {
-      state: { email: trimmedEmail, lastName: trimmedLast },
-    });
+    try {
+      setIsSubmitting(true);
+      try {
+        const result = await findGuestPortal({ email: trimmedEmail, reservation_id: trimmedReservationId });
+        navigate(`/reservation/${encodeURIComponent(result.id)}`, {
+          state: {
+            email: trimmedEmail,
+            reservationId: result.reservation_id,
+            portalToken: result.portal_token,
+            passId: result.id,
+          },
+        });
+        return;
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 404) {
+          throw error;
+        }
+      }
+
+      const visitor = await getVisitorPass(trimmedReservationId);
+      if (visitor.email.trim().toLowerCase() !== trimmedEmail.toLowerCase()) {
+        setErrors((prev) => ({ ...prev, submit: "Email does not match this pass ID." }));
+        return;
+      }
+
+      navigate(`/reservation/${encodeURIComponent(visitor.id)}`, {
+        state: {
+          email: trimmedEmail,
+          reservationId: trimmedReservationId,
+          portalToken: visitor.portal_token,
+          passId: visitor.id,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setErrors((prev) => ({ ...prev, submit: error.message }));
+      } else {
+        setErrors((prev) => ({ ...prev, submit: "Unable to find reservation right now." }));
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -64,20 +98,22 @@ export default function ReservationFindPage() {
             />
             {errors.email ? <div className={styles.error}>{errors.email}</div> : null}
 
-            <label className={styles.label}>Last Name</label>
+            <label className={styles.label}>Reservation ID or Pass ID</label>
             <input
-              className={`${styles.input} ${errors.lastName ? styles.inputError : ""}`}
-              value={lastName}
+              className={`${styles.input} ${errors.reservationId ? styles.inputError : ""}`}
+              value={reservationId}
               onChange={(e) => {
-                setLastName(e.target.value);
-                if (errors.lastName) setErrors((prev) => ({ ...prev, lastName: undefined }));
+                setReservationId(e.target.value);
+                if (errors.reservationId) setErrors((prev) => ({ ...prev, reservationId: undefined }));
               }}
-              placeholder="Last Name"
+              placeholder="RES-1001 or your pass UUID"
             />
-            {errors.lastName ? <div className={styles.error}>{errors.lastName}</div> : null}
+            {errors.reservationId ? <div className={styles.error}>{errors.reservationId}</div> : null}
+
+            {errors.submit ? <div className={styles.error}>{errors.submit}</div> : null}
 
             <button type="submit" className={styles.primaryBtn}>
-              View Day Pass
+              {isSubmitting ? "Finding..." : "View Day Pass"}
             </button>
 
             <div className={styles.footerText}>

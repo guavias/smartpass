@@ -5,6 +5,15 @@ import hilineLogo from "../../../assets/hilineLogo.png";
 import personIcon from "../../../assets/person.png";
 import lookupGlassIcon from "../../../assets/lookupglass.png";
 import clipboardIcon from "../../../assets/clipboard.png";
+import {
+  clearAdminSession,
+  getAdminAccessLogs,
+  getAdminPasses,
+  getAdminSession,
+  isAdminSessionValid,
+  patchAdminPass,
+} from "../../../api/admin";
+import { ApiError } from "../../../api/client";
 
 type PassType = "Visitor" | "Overnight Guest";
 type Status = "Active" | "Expired" | "Upcoming" | "Revoked";
@@ -15,9 +24,9 @@ type PassRecord = {
   reservationId: string;
   name: string;
   type: PassType;
+  status: Status;
   startAt: string;
   endAt: string;
-  revoked?: boolean;
   adults: number;
   children: number;
   email: string;
@@ -49,101 +58,21 @@ type EditAudit = {
   changes: string[];
 };
 
-const PASS_DATA: PassRecord[] = [
-  {
-    passId: "P-100231",
-    reservationId: "R-92311",
-    name: "Joel Ordonez",
-    type: "Visitor",
-    startAt: "2026-03-27T08:00:00-05:00",
-    endAt: "2026-03-27T20:00:00-05:00",
-    adults: 2,
-    children: 1,
-    email: "joel.ordonez@example.com",
-    phone: "(555) 201-9981",
-    preferredContact: "SMS",
-    orderTotal: 48.75,
-    tax: 3.75,
-    paymentMethod: "Visa",
-    last4: "4242",
-    squarePaymentId: "sq0idp-100231",
-  },
-  {
-    passId: "P-100232",
-    reservationId: "R-92312",
-    name: "Ryan Kehtar",
-    type: "Overnight Guest",
-    startAt: "2026-03-26T15:00:00-05:00",
-    endAt: "2026-03-29T11:00:00-05:00",
-    adults: 2,
-    children: 0,
-    email: "ryan.kehtar@example.com",
-    phone: "(555) 778-1112",
-    preferredContact: "Email",
-    orderTotal: 329.0,
-    tax: 24.0,
-    paymentMethod: "Mastercard",
-    last4: "1144",
-    squarePaymentId: "sq0idp-100232",
-  },
-  {
-    passId: "P-100233",
-    reservationId: "R-92313",
-    name: "Via Guasa",
-    type: "Visitor",
-    startAt: "2026-03-28T09:00:00-05:00",
-    endAt: "2026-03-28T18:00:00-05:00",
-    adults: 1,
-    children: 0,
-    email: "via.guasa@example.com",
-    phone: "(555) 440-9922",
-    preferredContact: "Email",
-    orderTotal: 25.0,
-    tax: 1.94,
-    paymentMethod: "Amex",
-    last4: "0005",
-    squarePaymentId: "sq0idp-100233",
-  },
-];
-
-const LOG_DATA: AccessLog[] = [
-  {
-    id: "L1",
-    passId: "P-100231",
-    name: "Joel Ordonez",
-    at: "2026-03-27T09:14:00-05:00",
-    result: "allow",
-    reason: "Within access window",
-    location: "Crappie House Scanner",
-  },
-  {
-    id: "L2",
-    passId: "P-100231",
-    name: "Joel Ordonez",
-    at: "2026-03-27T18:41:00-05:00",
-    result: "deny",
-    reason: "Outside access window",
-    location: "Crappie House Scanner",
-  },
-  {
-    id: "L3",
-    passId: "P-100232",
-    name: "Ryan Kehtar",
-    at: "2026-03-27T07:55:00-05:00",
-    result: "allow",
-    reason: "Overnight guest active",
-    location: "Crappie House Scanner",
-  },
-];
-
-function getStatus(pass: PassRecord): Status {
-  if (pass.revoked) return "Revoked";
-  const now = Date.now();
-  const start = new Date(pass.startAt).getTime();
-  const end = new Date(pass.endAt).getTime();
-  if (now < start) return "Upcoming";
-  if (now > end) return "Expired";
+function toStatus(value: string): Status {
+  const normalized = value.toLowerCase();
+  if (normalized === "active") return "Active";
+  if (normalized === "expired") return "Expired";
+  if (normalized === "revoked") return "Revoked";
+  if (normalized === "upcoming" || normalized === "inactive") return "Upcoming";
   return "Active";
+}
+
+function toPassType(value: string): PassType {
+  return value.toLowerCase() === "guest" ? "Overnight Guest" : "Visitor";
+}
+
+function toScanResult(value?: string): ScanResult {
+  return value?.toLowerCase() === "approved" || value?.toLowerCase() === "allow" ? "allow" : "deny";
 }
 
 function fmtDateTime(value: string) {
@@ -167,13 +96,16 @@ function toInputDateTimeValue(iso: string) {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const session = getAdminSession();
   const [view, setView] = useState<"passes" | "logs">("passes");
   const [currentTime, setCurrentTime] = useState<string>("");
-  const employeeName = "Jane Doe";
-  const employeeId = "JD123456";
-  const [passes, setPasses] = useState<PassRecord[]>(PASS_DATA);
-  const [logs] = useState<AccessLog[]>(LOG_DATA);
+  const employeeName = session?.name ?? "Admin User";
+  const employeeId = session?.adminId ?? "N/A";
+  const [passes, setPasses] = useState<PassRecord[]>([]);
+  const [logs, setLogs] = useState<AccessLog[]>([]);
   const [audit, setAudit] = useState<EditAudit[]>([]);
+  const [loadError, setLoadError] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"All" | Status>("All");
@@ -216,7 +148,7 @@ export default function Dashboard() {
       passes.map((p) => {
         const passLogs = logsByPass.get(p.passId) ?? [];
         const lastScan = passLogs[0];
-        return { ...p, status: getStatus(p), lastScan };
+        return { ...p, lastScan };
       }),
     [passes, logsByPass]
   );
@@ -289,6 +221,20 @@ export default function Dashboard() {
     if (selectedPass.adults !== draft.adults || selectedPass.children !== draft.children)
       changes.push(`Party size: ${selectedPass.adults}/${selectedPass.children} → ${draft.adults}/${draft.children}`);
 
+    const nextStartAt = new Date(draft.startAt).toISOString();
+    const nextEndAt = new Date(draft.endAt).toISOString();
+
+    setIsSaving(true);
+    patchAdminPass(selectedPass.passId, {
+      phone: draft.phone,
+      access_start: nextStartAt,
+      access_end: nextEndAt,
+    })
+      .catch(() => {
+        // Keep local edits visible even if the backend rejects unsupported fields.
+      })
+      .finally(() => setIsSaving(false));
+
     setPasses((prev) =>
       prev.map((p) =>
         p.passId === selectedPass.passId
@@ -297,8 +243,8 @@ export default function Dashboard() {
               email: draft.email,
               phone: draft.phone,
               preferredContact: draft.preferredContact,
-              startAt: new Date(draft.startAt).toISOString(),
-              endAt: new Date(draft.endAt).toISOString(),
+              startAt: nextStartAt,
+              endAt: nextEndAt,
               adults: draft.adults,
               children: draft.children,
             }
@@ -325,6 +271,68 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    async function loadDashboardData() {
+      if (!isAdminSessionValid(session)) return;
+      try {
+        setLoadError("");
+        const [passData, logData] = await Promise.all([
+          getAdminPasses({ page: 1, page_size: 200 }),
+          getAdminAccessLogs(200, 0),
+        ]);
+
+        setPasses(
+          passData.items.map((item) => ({
+            passId: item.pass_id,
+            reservationId: item.reservation_id ?? "N/A",
+            name: item.guest_name,
+            type: toPassType(item.pass_type),
+            status: toStatus(item.status),
+            startAt: item.start_at,
+            endAt: item.end_at,
+            adults: item.adults,
+            children: item.children,
+            email: item.email,
+            phone: item.phone ?? "",
+            preferredContact: "Email",
+            orderTotal: 0,
+            tax: 0,
+            paymentMethod: "N/A",
+            last4: "----",
+            squarePaymentId: "N/A",
+          }))
+        );
+
+        setLogs(
+          logData.items.map((item, index) => ({
+            id: item.event_id ?? `${item.pass_id ?? "event"}-${index}`,
+            passId: item.pass_id ?? "N/A",
+            name: item.guest_name ?? "Unknown",
+            at: item.timestamp ?? new Date().toISOString(),
+            result: toScanResult(item.result),
+            reason: item.reason ?? item.result ?? "N/A",
+            location: item.location ?? "Unknown",
+          }))
+        );
+      } catch (error) {
+        if (error instanceof ApiError) {
+          setLoadError(error.message);
+        } else {
+          setLoadError("Unable to load dashboard data.");
+        }
+      }
+    }
+
+    void loadDashboardData();
+  }, [session]);
+
+  useEffect(() => {
+    if (!isAdminSessionValid(session)) {
+      clearAdminSession();
+      navigate("/admin/login", { replace: true });
+    }
+  }, [navigate, session]);
+
+  useEffect(() => {
     function updateTime() {
       const now = new Date();
       const cstTime = now.toLocaleString("en-US", {
@@ -345,7 +353,7 @@ export default function Dashboard() {
   }, []);
 
   function handleLogout() {
-    sessionStorage.removeItem("admin_auth_session");
+    clearAdminSession();
     navigate("/admin/login");
   }
 
@@ -362,6 +370,7 @@ export default function Dashboard() {
 
       <section className={styles.panel}>
         <h2 className={styles.panelTitle}>Recent Denials</h2>
+        {loadError ? <p className={styles.muted}>{loadError}</p> : null}
         {recentDenials.length === 0 ? (
           <p className={styles.muted}>No denials today.</p>
         ) : (
@@ -515,7 +524,7 @@ export default function Dashboard() {
             <div className={styles.group}>
               <div><strong>Pass ID:</strong> {selectedPass.passId}</div>
               <div><strong>Reservation ID:</strong> {selectedPass.reservationId}</div>
-              <div><strong>Status:</strong> {getStatus(selectedPass)}</div>
+              <div><strong>Status:</strong> {selectedPass.status}</div>
               <div><strong>Access Window:</strong> {fmtDateTime(selectedPass.startAt)} - {fmtDateTime(selectedPass.endAt)}</div>
             </div>
 
@@ -569,7 +578,9 @@ export default function Dashboard() {
 
             <div className={styles.drawerActions}>
               <button className={styles.secondaryBtn} onClick={() => setSelectedPassId(null)}>Cancel</button>
-              <button className={styles.primaryBtn} onClick={saveDetails}>Save Changes</button>
+              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving}>
+                {isSaving ? "Saving..." : "Save Changes"}
+              </button>
             </div>
           </div>
         </aside>

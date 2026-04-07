@@ -18,6 +18,10 @@
   background: rgba(222, 229, 238, 0.56);
 }
 
+.qrFrameFlash {
+  animation: qrFrameFlash 0.9s ease;
+  box-shadow: 0 0 0 3px rgba(81, 171, 213, 0.28);
+}
 .inner {
   position: relative;
   z-index: 1;
@@ -28,9 +32,58 @@
   justify-items: center;
 }
 
+.qrRefreshBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px auto 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(81, 171, 213, 0.12);
+  color: #1f6f95;
+  font-size: 13px;
+  font-weight: 800;
+}
+.qrRefreshBadge::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #51abd5;
+  box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.5);
+  animation: qrBadgePulse 1.2s infinite;
+}
 .title {
   margin: 0;
   color: #111;
+@keyframes qrFrameFlash {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.0);
+  }
+  35% {
+    transform: scale(1.015);
+    box-shadow: 0 0 0 4px rgba(81, 171, 213, 0.35);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(81, 171, 213, 0.22);
+  }
+}
+@keyframes qrBadgePulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.45);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(81, 171, 213, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0);
+  }
+}
   font-size: clamp(30px, 3vw, 44px);
   font-weight: 700;
   text-align: center;
