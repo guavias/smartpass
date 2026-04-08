@@ -113,6 +113,37 @@ Use the `qr_payload` value returned by `/qr`:
 ## Frontend
 This is the tentative complete frontend.
 
+## Deploy To Render
+This branch includes a Render Blueprint at `render.yaml` and a production Dockerfile at `Dockerfile`.
+
+### 1) Create service from Blueprint
+1. Push this branch to GitHub.
+2. In Render, create a new Blueprint and point it to this repository.
+3. Render will create one web service named `smartpass-web`.
+
+### 2) Set required environment variables in Render
+Set these values on the `smartpass-web` service:
+
+- `MONGODB_URL`
+- `QR_SIGNING_SECRET`
+- `SQUARE_ACCESS_TOKEN`
+- `SQUARE_LOCATION_ID`
+- `RESEND_API_KEY`
+- `VITE_SQUARE_APP_ID`
+- `VITE_SQUARE_LOCATION_ID`
+
+Then set both of these to your deployed Render URL (example: `https://smartpass-web.onrender.com`):
+
+- `BASE_URL`
+- `PORTAL_BASE_URL`
+
+### 3) Verify
+- Health endpoint: `/health`
+- API endpoint example: `/api/v1/access/portal/{portal_token}`
+- Frontend root: `/`
+
+The backend serves the built frontend in production, so one Render web service hosts both API and UI.
+
 ### Frontend Quick Start
 1. `cd frontend`
 2. `npm install`
