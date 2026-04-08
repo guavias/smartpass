@@ -6,6 +6,15 @@ services:
     plan: free
     healthCheckPath: /health
     autoDeploy: true
+    buildArgs:
+      - key: VITE_API_BASE_URL
+        sync: false
+      - key: VITE_SQUARE_APP_ID
+        sync: false
+      - key: VITE_SQUARE_ENV
+        value: sandbox
+      - key: VITE_SQUARE_LOCATION_ID
+        sync: false
     envVars:
       - key: HOST
         value: 0.0.0.0
