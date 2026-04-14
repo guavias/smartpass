@@ -296,7 +296,7 @@ export default function Dashboard() {
       try {
         setLoadError("");
         const [passData, logData] = await Promise.all([
-          getAdminPasses({ page: 1, page_size: 200 }),
+          getAdminPasses({ page: 1, page_size: 100 }),
           getAdminAccessLogs(200, 0),
         ]);
 
