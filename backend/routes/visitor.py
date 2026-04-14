@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 import logging
+import pytz
 
 from schemas import VisitorCreate, VisitorResponse
 from database import create_pass, get_pass_by_id, update_pass, utcnow
@@ -15,11 +16,28 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 qr_service = RotatingQRCodeService()
 
+# Central timezone for time display
+CST = pytz.timezone('America/Chicago')
+
 
 def _to_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
     return value.astimezone(timezone.utc)
+
+
+def _calculate_day_pass_end_time(start: datetime, num_days: int) -> datetime:
+    """
+    Calculate end time for day passes.
+    For N days, end at 11:59:59 PM of the Nth day (inclusive).
+    Example: 1-day pass starting Apr 14 3:04 PM ends Apr 14 11:59:59 PM
+    Example: 2-day pass starting Apr 14 3:04 PM ends Apr 15 11:59:59 PM
+    """
+    # Add (num_days - 1) full days to start time
+    end_datetime = start + timedelta(days=num_days - 1)
+    # Set to 11:59:59 PM UTC (end of day)
+    end_datetime = end_datetime.replace(hour=23, minute=59, second=59, microsecond=0)
+    return end_datetime
 
 
 def _portal_base_url() -> str:
@@ -88,7 +106,7 @@ async def create_visitor_pass(visitor: VisitorCreate):
 
         created_at = utcnow()
         access_start = _to_utc(visitor.access_start) if visitor.access_start else created_at
-        access_end = access_start + timedelta(days=visitor.num_days)
+        access_end = _calculate_day_pass_end_time(access_start, visitor.num_days)
 
         payment_status = "not_required"
         payment_reference = None

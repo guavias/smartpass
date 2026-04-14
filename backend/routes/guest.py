@@ -2,6 +2,7 @@ import os
 import uuid
 import logging
 from datetime import datetime, timezone
+import pytz
 
 from fastapi import APIRouter, HTTPException
 
@@ -13,6 +14,9 @@ from schemas import GuestCreate, GuestLookupRequest, GuestResponse
 logger = logging.getLogger(__name__)
 router = APIRouter()
 qr_service = RotatingQRCodeService()
+
+# Central timezone for time display
+CST = pytz.timezone('America/Chicago')
 
 
 def _to_utc(value: datetime) -> datetime:
