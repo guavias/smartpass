@@ -6,6 +6,8 @@ export type CreateVisitorPassRequest = {
 	phone: string;
 	vehicle_info: string;
 	num_days: number;
+	num_adults: number;
+	num_children: number;
 	payment_amount: number;
 	payment_method: string;
 	payment_source_id: string;
@@ -25,6 +27,8 @@ export type VisitorPassResponse = {
 	payment_status: string;
 	payment_amount: number;
 	num_days: number;
+	num_adults: number;
+	num_children: number;
 	status: string;
 };
 

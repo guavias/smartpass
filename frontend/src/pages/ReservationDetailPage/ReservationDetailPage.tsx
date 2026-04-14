@@ -44,15 +44,17 @@ export default function ReservationDetailPage() {
   const [passType, setPassType] = useState<"visitor" | "guest" | null>(null);
   const [paymentAmount, setPaymentAmount] = useState(0);
   const [numDays, setNumDays] = useState(1);
+  const [numAdults, setNumAdults] = useState(0);
+  const [numChildren, setNumChildren] = useState(0);
   const passId = state.passId ?? params.id ?? "";
 
   const [startDateTime, setStartDateTime] = useState("");
   const [endDateTime, setEndDateTime] = useState("");
 
-  // For visitor passes: show 1 adult (single ticket), 0 children
+  // For visitor passes: use actual guest counts from API
   // For guest passes: don't show breakdown (we don't have pricing info)
-  const adults: number = passType === "visitor" ? 1 : 0;
-  const children: number = 0;
+  const adults: number = passType === "visitor" ? numAdults : 0;
+  const children: number = passType === "visitor" ? numChildren : 0;
   const days: number = numDays;
   
   const pricing = {
@@ -101,6 +103,8 @@ export default function ReservationDetailPage() {
           if (type === "visitor" && "payment_amount" in pass && "num_days" in pass) {
             setPaymentAmount(pass.payment_amount);
             setNumDays(pass.num_days);
+            setNumAdults(pass.num_adults ?? 1);
+            setNumChildren(pass.num_children ?? 0);
           }
         }
       } catch (err) {

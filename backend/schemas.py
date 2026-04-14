@@ -16,6 +16,8 @@ class VisitorCreate(VisitorBase):
     payment_amount: float
     payment_method: str = "card"  # e.g., "card", "cash"
     num_days: int = Field(default=1, ge=1, le=30)
+    num_adults: int = Field(default=1, ge=1, le=10)
+    num_children: int = Field(default=0, ge=0, le=10)
     access_start: Optional[datetime] = None
     payment_source_id: Optional[str] = None
     idempotency_key: Optional[str] = None
@@ -33,6 +35,8 @@ class VisitorResponse(VisitorBase):
     payment_reference: Optional[str] = None
     payment_amount: float
     num_days: int
+    num_adults: int
+    num_children: int
     qr_refresh_seconds: int = 60
     access_granted: bool = False
     status: str

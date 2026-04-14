@@ -88,6 +88,8 @@ def _serialize_visitor(doc: dict) -> VisitorResponse:
         payment_reference=doc.get("payment_reference"),
         payment_amount=doc.get("payment_amount", 0),
         num_days=doc.get("num_days", 1),
+        num_adults=doc.get("num_adults", 1),
+        num_children=doc.get("num_children", 0),
         access_granted=status == "active",
         status=status,
         pass_type="visitor",
@@ -146,6 +148,8 @@ async def create_visitor_pass(visitor: VisitorCreate):
             "payment_method": visitor.payment_method,
             "payment_amount": visitor.payment_amount,
             "num_days": visitor.num_days,
+            "num_adults": visitor.num_adults,
+            "num_children": visitor.num_children,
             "qr_refresh_seconds": 60,
         }
         created = await create_pass(pass_doc)
