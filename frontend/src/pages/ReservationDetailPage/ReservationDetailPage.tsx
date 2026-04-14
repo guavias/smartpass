@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import Card from "../../components/Card/Card";
 import personIcon from "../../assets/person.png";
+import { ApiError } from "../../api/client";
+import { getGuestPass, getPortal, getPortalQr } from "../../api/reservations";
 import styles from "./ReservationDetailPage.module.css";
 
 type LookupState = {
   email?: string;
-  lastName?: string;
+  reservationId?: string;
+  portalToken?: string;
+  passId?: string;
 };
 
 function money(n: number) {
@@ -24,23 +28,29 @@ function formatTimeLabel(iso: string, endOfDay = false) {
 }
 
 export default function ReservationDetailPage() {
+  const params = useParams<{ id: string }>();
   const location = useLocation();
   const state = (location.state as LookupState | null) ?? {};
   const [isQrOpen, setIsQrOpen] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(60);
+  const [refreshSeconds, setRefreshSeconds] = useState(60);
+  const [qrPayload, setQrPayload] = useState("");
+  const [error, setError] = useState("");
+  const [qrRefreshedAt, setQrRefreshedAt] = useState<string>("");
+  const [qrFlash, setQrFlash] = useState(false);
 
-  const reservationId = "1234567";
-  const guestLast = state.lastName?.trim() || "Doe";
-  const guestName = `John ${guestLast}`;
+  const [reservationId, setReservationId] = useState(state.reservationId ?? "");
+  const [guestName, setGuestName] = useState("Loading...");
+  const [portalToken, setPortalToken] = useState(state.portalToken ?? "");
+  const passId = state.passId ?? params.id ?? "";
 
   const adults: number = 2;
   const children: number = 1;
   const adultRate = 15;
-  const childRate = 5;
+  const childRate = 10;
   const days: number = 2;
-  const startDateISO = "2026-02-15";
-  const endDateISO = "2026-02-16";
+  const [startDateISO, setStartDateISO] = useState("2026-02-15");
+  const [endDateISO, setEndDateISO] = useState("2026-02-16");
 
   const pricing = {
     adultLine: adults * adultRate * days,
@@ -52,30 +62,132 @@ export default function ReservationDetailPage() {
   pricing.tax = Number((pricing.subtotal * 0.0825).toFixed(2));
   pricing.total = Number((pricing.subtotal + pricing.tax).toFixed(2));
 
-  const qrPayload = useMemo(() => {
-    return `reservation:${reservationId}|tick:${refreshTick}`;
-  }, [reservationId, refreshTick]);
-
   const qrImageUrl = useMemo(() => {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrPayload)}`;
-  }, [qrPayload]);
+    if (!portalToken) return "";
+    return `/api/v1/access/portal/${encodeURIComponent(portalToken)}/qr-image?payload=${encodeURIComponent(qrPayload)}`;
+  }, [portalToken, qrPayload]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadDetails() {
+      if (!passId && !portalToken) return;
+      try {
+        if (!portalToken && passId) {
+          const guest = await getGuestPass(passId);
+          if (!isActive) return;
+          setPortalToken(guest.portal_token);
+          setReservationId(guest.reservation_id);
+          setGuestName(guest.name);
+          setStartDateISO(new Date(guest.access_start).toISOString().slice(0, 10));
+          setEndDateISO(new Date(guest.access_end).toISOString().slice(0, 10));
+        }
+      } catch (err) {
+        if (!isActive) return;
+        if (err instanceof ApiError) {
+          setError(err.message);
+        } else {
+          setError("Unable to load reservation details.");
+        }
+      }
+    }
+
+    void loadDetails();
+    return () => {
+      isActive = false;
+    };
+  }, [passId, portalToken]);
+
+  useEffect(() => {
+    let isActive = true;
+
+    async function loadPortal() {
+      if (!portalToken) return;
+      try {
+        const portal = await getPortal(portalToken);
+        if (!isActive) return;
+        setGuestName(portal.holder_name);
+        setStartDateISO(new Date(portal.access_start).toISOString().slice(0, 10));
+        setEndDateISO(new Date(portal.access_end).toISOString().slice(0, 10));
+      } catch {
+        if (!isActive) return;
+      }
+    }
+
+    void loadPortal();
+    return () => {
+      isActive = false;
+    };
+  }, [portalToken]);
+
+  useEffect(() => {
+    if (!isQrOpen || !portalToken) return;
+
+    let isActive = true;
+    let flashTimer: number | undefined;
+    async function fetchQr() {
+      try {
+        const qr = await getPortalQr(portalToken);
+        if (!isActive) return;
+        setQrPayload(qr.qr_payload);
+        setRefreshSeconds(qr.refresh_seconds);
+        setSecondsLeft(qr.refresh_seconds);
+        setQrRefreshedAt(new Date().toLocaleTimeString());
+        setQrFlash(true);
+        setError("");
+        flashTimer = window.setTimeout(() => setQrFlash(false), 900);
+      } catch (err) {
+        if (!isActive) return;
+        if (err instanceof ApiError) {
+          setError(err.message);
+        } else {
+          setError("Unable to load pass QR.");
+        }
+      }
+    }
+
+    void fetchQr();
+    return () => {
+      isActive = false;
+      if (flashTimer) window.clearTimeout(flashTimer);
+    };
+  }, [isQrOpen, portalToken]);
 
   useEffect(() => {
     if (!isQrOpen) return;
 
-    setSecondsLeft(60);
     const interval = window.setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
-          setRefreshTick((tick) => tick + 1);
-          return 60;
+          return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [isQrOpen]);
+  }, [isQrOpen, refreshSeconds]);
+
+  useEffect(() => {
+    if (!isQrOpen || !portalToken) return;
+    if (secondsLeft > 0) return;
+
+    async function refreshQr() {
+      try {
+        const qr = await getPortalQr(portalToken);
+        setQrPayload(qr.qr_payload);
+        setRefreshSeconds(qr.refresh_seconds);
+        setSecondsLeft(qr.refresh_seconds);
+        setQrRefreshedAt(new Date().toLocaleTimeString());
+        setQrFlash(true);
+        window.setTimeout(() => setQrFlash(false), 900);
+      } catch {
+        setError("Unable to refresh pass QR.");
+      }
+    }
+
+    void refreshQr();
+  }, [secondsLeft, isQrOpen, portalToken]);
 
   return (
     <div className={`${styles.page} chSharedHeroBg`}>
@@ -84,6 +196,7 @@ export default function ReservationDetailPage() {
       <div className={styles.inner}>
         <h1 className={styles.title}>Your Day Pass</h1>
         <p className={styles.subtitle}>Scan your QR code to access the Crappie House.</p>
+        {error ? <p className={styles.subtitle}>{error}</p> : null}
 
         <Card className={styles.card}>
           <p className={styles.resIdLabel}>Pass #</p>
@@ -159,13 +272,19 @@ export default function ReservationDetailPage() {
           <div className={styles.qrModalCard}>
             <h2 className={styles.qrTitle}>Crappie House Access</h2>
 
-            <div className={styles.qrFrame}>
-              <img src={qrImageUrl} alt="Day pass QR code" className={styles.qrImage} />
+            <div className={`${styles.qrFrame} ${qrFlash ? styles.qrFrameFlash : ""}`}>
+              {!qrPayload ? (
+                <p className={styles.qrHelp}>Loading QR code...</p>
+              ) : (
+                <img src={qrImageUrl} alt="Day pass QR code" className={styles.qrImage} />
+              )}
             </div>
 
             <p className={styles.qrTimer}>
               QR refreshes in <span>{secondsLeft}s</span>
             </p>
+
+            {qrRefreshedAt ? <p className={styles.qrRefreshBadge}>QR refreshed at {qrRefreshedAt}</p> : null}
 
             <button className={styles.qrCloseBtn} type="button" onClick={() => setIsQrOpen(false)}>
               Close

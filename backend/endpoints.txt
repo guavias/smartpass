@@ -1,0 +1,103 @@
+SmartPass Backend Testable Endpoints
+
+Base URL (local): http://127.0.0.1:8000
+
+1) Health
+- GET /
+- Description: Basic service health check.
+- Expected: {"status": "online", "system": "Smart Pass Backend"}
+
+2) Visitors (Day Guest Flow)
+- POST /api/v1/visitors/
+- Description: Create a visitor pass (supports multi-day and card/cash flow).
+- Notes: For card payments, include payment_source_id.
+
+- GET /api/v1/visitors/{visitor_id}
+- Description: Retrieve a visitor pass by id.
+
+- DELETE /api/v1/visitors/{visitor_id}
+- Description: Revoke a visitor pass.
+
+3) Guests (Overnight Reservation Flow)
+- POST /api/v1/guests/
+- Description: Create or refresh an overnight guest pass based on reservation window.
+
+- POST /api/v1/guests/find
+- Description: Find existing guest portal by email + reservation_id.
+
+- GET /api/v1/guests/{guest_id}
+- Description: Retrieve guest pass by id.
+
+- PUT /api/v1/guests/{guest_id}
+- Description: Update guest pass fields (name, phone, access window, status).
+
+- DELETE /api/v1/guests/{guest_id}
+- Description: Revoke a guest pass.
+
+4) Access + QR
+- GET /api/v1/access/portal/{portal_token}
+- Description: Return portal metadata (holder, window, status, refresh interval).
+
+- GET /api/v1/access/portal/{portal_token}/qr
+- Description: Return current rotating QR payload JSON.
+- Notes: Returns 403 if portal is inactive/expired/revoked.
+
+- GET /api/v1/access/portal/{portal_token}/qr-image
+- Description: Return PNG image for current rotating QR payload.
+- Notes: Image is generated on demand (no blob storage required).
+
+- WS /api/v1/access/portal/{portal_token}/ws
+- Description: WebSocket stream pushing QR payload updates as they rotate.
+- Notes: Best for React live viewer.
+
+- POST /api/v1/access/validate
+- Description: Validate a scanned QR payload and return approved/invalid/expired/revoked.
+- Notes: Also writes an access log entry.
+
+5) Admin
+- POST /api/v1/admin/override
+- Description: Manual access override endpoint.
+- Notes: Currently minimal behavior; TODO comments remain.
+
+- GET /api/v1/admin/logs
+- Description: System logs endpoint.
+- Notes: Currently returns placeholder data.
+
+- GET /api/v1/admin/access-logs
+- Description: Return stored access logs with pagination.
+
+- GET /api/v1/admin/users/{user_id}/profile
+- Description: Return user profile/pass history view.
+
+- DELETE /api/v1/admin/users/{user_id}
+- Description: Soft-delete style user endpoint.
+- Notes: Currently minimal behavior; TODO comments remain.
+
+Quick test order (recommended)
+1. POST /api/v1/visitors/
+2. GET /api/v1/access/portal/{portal_token}
+3. GET /api/v1/access/portal/{portal_token}/qr
+4. POST /api/v1/access/validate
+5. GET /api/v1/access/portal/{portal_token}/qr-image
+
+Overnight guest test order (recommended)
+1. POST /api/v1/guests/
+	- Include: name, email, phone, reservation_id, check_in, check_out
+2. POST /api/v1/guests/find
+	- Include: email, reservation_id
+	- Capture returned portal_token
+3. GET /api/v1/access/portal/{portal_token}
+4. GET /api/v1/access/portal/{portal_token}/qr
+5. POST /api/v1/access/validate
+6. GET /api/v1/access/portal/{portal_token}/qr-image
+
+
+Sample overnight create body
+{
+  "name": "Overnight Guest One",
+  "email": "viaguasa@utexas.edu",
+  "phone": "555-999-0000",
+  "reservation_id": "RES-1001",
+  "check_in": "2026-04-01T15:00:00Z",
+  "check_out": "2026-04-04T11:00:00Z"
+}

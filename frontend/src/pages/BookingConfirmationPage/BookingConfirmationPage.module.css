@@ -340,6 +340,16 @@
   padding: 10px;
 }
 
+.qrFrameFlash {
+  animation: qrFrameFlash 0.9s ease;
+  box-shadow: 0 0 0 3px rgba(81, 171, 213, 0.28);
+}
+
+.qrFrameFlash {
+  animation: qrFrameFlash 0.9s ease;
+  box-shadow: 0 0 0 3px rgba(81, 171, 213, 0.28);
+}
+
 .qrImage {
   width: 100%;
   height: auto;
@@ -350,6 +360,52 @@
   margin: 14px 0 0;
   font-size: 22px;
   color: #4b5563;
+}
+
+.qrRefreshBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px auto 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(81, 171, 213, 0.12);
+  color: #1f6f95;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.qrRefreshBadge::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #51abd5;
+  box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.5);
+  animation: qrBadgePulse 1.2s infinite;
+}
+
+.qrRefreshBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px auto 0;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(81, 171, 213, 0.12);
+  color: #1f6f95;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.qrRefreshBadge::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #51abd5;
+  box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.5);
+  animation: qrBadgePulse 1.2s infinite;
 }
 
 .qrTimer span {
@@ -380,6 +436,66 @@
 
 .qrCloseBtn:hover {
   background: #f7f7f7;
+}
+
+@keyframes qrFrameFlash {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.0);
+  }
+  35% {
+    transform: scale(1.015);
+    box-shadow: 0 0 0 4px rgba(81, 171, 213, 0.35);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(81, 171, 213, 0.22);
+  }
+}
+
+@keyframes qrBadgePulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.45);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(81, 171, 213, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0);
+  }
+}
+
+@keyframes qrFrameFlash {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.0);
+  }
+  35% {
+    transform: scale(1.015);
+    box-shadow: 0 0 0 4px rgba(81, 171, 213, 0.35);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 3px rgba(81, 171, 213, 0.22);
+  }
+}
+
+@keyframes qrBadgePulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0.45);
+  }
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(81, 171, 213, 0);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(81, 171, 213, 0);
+  }
 }
 
 @media (max-width: 980px) {

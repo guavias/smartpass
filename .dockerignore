@@ -1,0 +1,16 @@
+.git
+.gitignore
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache
+**/.mypy_cache
+**/.DS_Store
+**/node_modules
+**/dist
+**/.env
+**/.env.*
+!.env.example
+frontend/tsconfig.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo

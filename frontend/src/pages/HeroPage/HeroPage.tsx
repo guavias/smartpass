@@ -105,7 +105,7 @@ export default function HeroPage() {
               <button
                 className={styles.primaryBtn}
                 onClick={() =>
-                  navigate("/book-pass", {
+                  navigate("/book", {
                     state: {
                       adults,
                       children,
@@ -121,7 +121,7 @@ export default function HeroPage() {
                 <div className={styles.existingText}>Already purchased a day pass?</div>
                 <button
                   className={styles.secondaryBtn}
-                  onClick={() => navigate("/find")}
+                  onClick={() => navigate("/reservation/find")}
                 >
                   View Day Pass
                 </button>

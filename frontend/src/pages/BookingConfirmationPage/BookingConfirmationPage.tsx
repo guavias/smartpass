@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Card from "../../components/Card/Card";
+import { getPortal, getPortalQr } from "../../api/reservations";
+import { ApiError } from "../../api/client";
 import styles from "./BookingConfirmationPage.module.css";
 
 type ConfirmationState = {
-  reservationId: string;
-  passUrl: string;
+  passId: string;
+  portalToken: string;
   email: string;
   preferredContact?: "Email" | "Phone";
 
@@ -46,13 +48,18 @@ export default function BookingConfirmationPage() {
   const location = useLocation();
   const state = location.state as ConfirmationState | null;
   const [isQrOpen, setIsQrOpen] = useState(false);
-  const [refreshTick, setRefreshTick] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(60);
+  const [qrPayload, setQrPayload] = useState("");
+  const [refreshSeconds, setRefreshSeconds] = useState(60);
+  const [portalStatus, setPortalStatus] = useState<string>("loading");
+  const [qrError, setQrError] = useState<string>("");
+  const [qrRefreshedAtMs, setQrRefreshedAtMs] = useState<number | null>(null);
+  const [qrFlash, setQrFlash] = useState(false);
 
   //mock info
   const baseData: ConfirmationState = state ?? {
-    reservationId: "1234567",
-    passUrl: `${window.location.origin}/pass/1234567`,
+    passId: "unknown-pass",
+    portalToken: "",
     email: "john@email.com",
     preferredContact: "Email",
     firstName: "John",
@@ -70,8 +77,6 @@ export default function BookingConfirmationPage() {
 
   const data: ConfirmationState = {
     ...baseData,
-    reservationId: "1234567",
-    passUrl: `${window.location.origin}/pass/1234567`,
   };
 
   const dateRangeText = useMemo(() => {
@@ -85,30 +90,100 @@ export default function BookingConfirmationPage() {
     preferred === "Email"
       ? `We sent a secure link to access your day pass to ${data.email}.`
       : `We texted a secure link to access your day pass to ${maskPhone(data.phone ?? "")}.`;
-  const qrPayload = useMemo(() => {
-    return `reservation:${data.reservationId}|tick:${refreshTick}`;
-  }, [data.reservationId, refreshTick]);
-
   const qrImageUrl = useMemo(() => {
-    return `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(qrPayload)}`;
-  }, [qrPayload]);
+    if (!data.portalToken) return "";
+    return `/api/v1/access/portal/${encodeURIComponent(data.portalToken)}/qr-image?payload=${encodeURIComponent(qrPayload)}`;
+  }, [data.portalToken, qrPayload]);
+
+  useEffect(() => {
+    async function loadPortal() {
+      if (!data.portalToken) return;
+      try {
+        const portal = await getPortal(data.portalToken);
+        setPortalStatus(portal.status);
+      } catch {
+        setPortalStatus("unavailable");
+      }
+    }
+
+    void loadPortal();
+  }, [data.portalToken]);
+
+  useEffect(() => {
+    let isActive = true;
+    let flashTimer: number | undefined;
+
+    async function refreshQr() {
+      if (!data.portalToken || !isQrOpen) return;
+      try {
+        const qr = await getPortalQr(data.portalToken);
+        if (!isActive) return;
+        const refreshedAt = Date.now();
+        setQrPayload(qr.qr_payload);
+        setRefreshSeconds(qr.refresh_seconds);
+        setSecondsLeft(qr.refresh_seconds);
+        setQrRefreshedAtMs(refreshedAt);
+        setQrFlash(true);
+        setQrError("");
+        flashTimer = window.setTimeout(() => setQrFlash(false), 900);
+      } catch (error) {
+        if (!isActive) return;
+        if (error instanceof ApiError) {
+          setQrError(error.message);
+        } else {
+          setQrError("Unable to load QR code.");
+        }
+      }
+    }
+
+    void refreshQr();
+    return () => {
+      isActive = false;
+      if (flashTimer) window.clearTimeout(flashTimer);
+    };
+  }, [data.portalToken, isQrOpen]);
 
   useEffect(() => {
     if (!isQrOpen) return;
 
-    setSecondsLeft(60);
     const interval = window.setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
-          setRefreshTick((tick) => tick + 1);
-          return 60;
+          return 0;
         }
         return prev - 1;
       });
     }, 1000);
 
     return () => window.clearInterval(interval);
-  }, [isQrOpen]);
+  }, [isQrOpen, refreshSeconds]);
+
+  useEffect(() => {
+    if (!isQrOpen || !data.portalToken) return;
+    if (secondsLeft > 0) return;
+
+    async function refreshQr() {
+      try {
+        const qr = await getPortalQr(data.portalToken);
+        const refreshedAt = Date.now();
+        setQrPayload(qr.qr_payload);
+        setRefreshSeconds(qr.refresh_seconds);
+        setSecondsLeft(qr.refresh_seconds);
+        setQrRefreshedAtMs(refreshedAt);
+        setQrFlash(true);
+        setQrError("");
+        window.setTimeout(() => setQrFlash(false), 900);
+      } catch (error) {
+        if (error instanceof ApiError) {
+          setQrError(error.message);
+        } else {
+          setQrError("Unable to refresh QR code.");
+        }
+      }
+    }
+
+    void refreshQr();
+  }, [secondsLeft, isQrOpen, data.portalToken]);
 
   return (
     <div className={styles.page}>
@@ -137,7 +212,12 @@ export default function BookingConfirmationPage() {
             <div className={styles.summaryGrid}>
               <div className={styles.label}>Pass ID</div>
               <div className={styles.value}>
-                <span className={styles.mono}>{data.reservationId}</span>
+                <span className={styles.mono}>{data.passId}</span>
+              </div>
+
+              <div className={styles.label}>Portal Token</div>
+              <div className={styles.value}>
+                <span className={styles.mono}>{data.portalToken || "N/A"}</span>
               </div>
 
               <div className={styles.label}>Name</div>
@@ -209,6 +289,7 @@ export default function BookingConfirmationPage() {
               <ul className={styles.passSecurityList}>
                 <li>QR code appears only when the pass is active.</li>
                 <li>QR code refreshes automatically every minute.</li>
+                <li>Current portal status: {portalStatus}</li>
               </ul>
             </div>
 
@@ -217,7 +298,7 @@ export default function BookingConfirmationPage() {
               <a className={styles.link} href="mailto:info@hi-line-resort.com">
                 info@hi-line-resort.com
               </a>{" "}
-              and include your pass ID <span className={styles.mono}>{data.reservationId}</span>.
+              and include your pass ID <span className={styles.mono}>{data.passId}</span>.
             </div>
           </Card>
         </div>
@@ -227,13 +308,27 @@ export default function BookingConfirmationPage() {
             <div className={styles.qrModalCard}>
               <h2 className={styles.qrTitle}>Crappie House Access</h2>
 
-              <div className={styles.qrFrame}>
-                <img src={qrImageUrl} alt="Day pass QR code" className={styles.qrImage} />
+              <div className={`${styles.qrFrame} ${qrFlash ? styles.qrFrameFlash : ""}`}>
+                {qrError ? (
+                  <p className={styles.qrHelp}>{qrError}</p>
+                ) : !qrPayload ? (
+                  <p className={styles.qrHelp}>Loading QR code...</p>
+                ) : (
+                  <img src={qrImageUrl} alt="Day pass QR code" className={styles.qrImage} />
+                )}
               </div>
 
               <p className={styles.qrTimer}>
                 QR refreshes in <span>{secondsLeft}s</span>
               </p>
+
+              {qrRefreshedAtMs ? (
+                <p className={styles.qrRefreshBadge}>QR refreshed at {new Date(qrRefreshedAtMs).toLocaleTimeString()}</p>
+              ) : null}
+
+              {qrRefreshedAtMs ? (
+                <p className={styles.qrHelp}>Valid until {new Date(qrRefreshedAtMs + refreshSeconds * 1000).toLocaleTimeString()}</p>
+              ) : null}
 
               <p className={styles.qrHelp}>
                 Hold the QR code up to the scanner at the Crappie House dock.

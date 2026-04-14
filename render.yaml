@@ -1,0 +1,39 @@
+services:
+  - type: web
+    name: smartpass-web
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: UVICORN_RELOAD
+        value: "false"
+      - key: BASE_URL
+        sync: false
+      - key: PORTAL_BASE_URL
+        sync: false
+      - key: MONGODB_URL
+        sync: false
+      - key: MONGODB_DB_NAME
+        value: smartpass
+      - key: QR_SIGNING_SECRET
+        sync: false
+      - key: SQUARE_ENV
+        value: sandbox
+      - key: SQUARE_ACCESS_TOKEN
+        sync: false
+      - key: SQUARE_LOCATION_ID
+        sync: false
+      - key: SQUARE_API_VERSION
+        value: "2024-10-17"
+      - key: RESEND_API_KEY
+        sync: false
+      - key: VITE_SQUARE_APP_ID
+        sync: false
+      - key: VITE_SQUARE_ENV
+        value: sandbox
+      - key: VITE_SQUARE_LOCATION_ID
+        sync: false

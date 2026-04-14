@@ -1,23 +1,26 @@
 import { FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../../components/Card/Card";
+import { ApiError } from "../../api/client";
+import { adminLogin, saveAdminSession } from "../../api/admin";
 import styles from "./Login.module.css";
 
 export default function Login() {
   const navigate = useNavigate();
-  const [employeeId, setEmployeeId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [errors, setErrors] = useState<{ employeeId?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string; submit?: string }>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
 
-    const nextErrors: { employeeId?: string; password?: string } = {};
-    const trimmedEmployeeId = employeeId.trim();
+    const nextErrors: { email?: string; password?: string } = {};
+    const trimmedEmail = email.trim();
     const trimmedPassword = password.trim();
 
-    if (!trimmedEmployeeId) {
-      nextErrors.employeeId = "Employee ID is required.";
+    if (!trimmedEmail) {
+      nextErrors.email = "Email is required.";
     }
     if (!trimmedPassword) {
       nextErrors.password = "Password is required.";
@@ -26,35 +29,48 @@ export default function Login() {
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
-    // make real auth check later
-    navigate("/admin/dashboard");
+    try {
+      setIsSubmitting(true);
+      const login = await adminLogin({ email: trimmedEmail, password: trimmedPassword });
+      saveAdminSession(login);
+      navigate("/admin/dashboard");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setErrors((prev) => ({ ...prev, submit: error.message }));
+      } else {
+        setErrors((prev) => ({ ...prev, submit: "Unable to sign in right now." }));
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
         <h1 className={styles.title}>Admin Login</h1>
-        <p className={styles.subtitle}>Sign in with your employee credentials to access the dashboard.</p>
+        <p className={styles.subtitle}>Sign in with your admin credentials to access the dashboard.</p>
 
         <Card className={styles.card}>
-          <h2 className={styles.cardTitle}>Employee Credentials</h2>
+          <h2 className={styles.cardTitle}>Admin Credentials</h2>
 
           <form onSubmit={handleSubmit} className={styles.form} noValidate>
-            <label htmlFor="employeeId" className={styles.label}>Employee ID</label>
+            <label htmlFor="email" className={styles.label}>Email</label>
             <input
-              id="employeeId"
-              className={`${styles.input} ${errors.employeeId ? styles.inputError : ""}`}
-              value={employeeId}
+              id="email"
+              type="email"
+              className={`${styles.input} ${errors.email ? styles.inputError : ""}`}
+              value={email}
               onChange={(e) => {
-                setEmployeeId(e.target.value);
-                if (errors.employeeId) {
-                  setErrors((prev) => ({ ...prev, employeeId: undefined }));
+                setEmail(e.target.value);
+                if (errors.email) {
+                  setErrors((prev) => ({ ...prev, email: undefined }));
                 }
               }}
               autoComplete="username"
-              placeholder="Employee ID"
+              placeholder="admin@smartpass.dev"
             />
-            {errors.employeeId ? <div className={styles.error}>{errors.employeeId}</div> : null}
+            {errors.email ? <div className={styles.error}>{errors.email}</div> : null}
 
             <label htmlFor="password" className={styles.label}>Password</label>
             <input
@@ -73,7 +89,11 @@ export default function Login() {
             />
             {errors.password ? <div className={styles.error}>{errors.password}</div> : null}
 
-            <button type="submit" className={styles.primaryBtn}>Login</button>
+            {errors.submit ? <div className={styles.error}>{errors.submit}</div> : null}
+
+            <button type="submit" className={styles.primaryBtn} disabled={isSubmitting}>
+              {isSubmitting ? "Signing in..." : "Login"}
+            </button>
           </form>
         </Card>
       </div>
