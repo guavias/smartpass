@@ -17,13 +17,13 @@ function money(n: number) {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
-function formatDateMain(iso: string) {
-  const d = new Date(iso + "T00:00:00");
+function formatDateMain(isoDateTime: string) {
+  const d = new Date(isoDateTime);
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatTimeLabel(iso: string, endOfDay = false) {
-  const d = new Date(iso + (endOfDay ? "T23:59:00" : "T00:01:00"));
+function formatTimeLabel(isoDateTime: string) {
+  const d = new Date(isoDateTime);
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
@@ -46,8 +46,8 @@ export default function ReservationDetailPage() {
   const [numDays, setNumDays] = useState(1);
   const passId = state.passId ?? params.id ?? "";
 
-  const [startDateISO, setStartDateISO] = useState("2026-02-15");
-  const [endDateISO, setEndDateISO] = useState("2026-02-16");
+  const [startDateTime, setStartDateTime] = useState("");
+  const [endDateTime, setEndDateTime] = useState("");
 
   // For visitor passes: show 1 adult (single ticket), 0 children
   // For guest passes: don't show breakdown (we don't have pricing info)
@@ -91,8 +91,8 @@ export default function ReservationDetailPage() {
         if (!isActive) return;
           setPortalToken(pass.portal_token);
           setGuestName(pass.name);
-          setStartDateISO(new Date(pass.access_start).toISOString().slice(0, 10));
-          setEndDateISO(new Date(pass.access_end).toISOString().slice(0, 10));
+          setStartDateTime(pass.access_start);
+          setEndDateTime(pass.access_end);
           
           // Extract pass-specific data
           const type = pass.pass_type as "visitor" | "guest";
@@ -128,8 +128,8 @@ export default function ReservationDetailPage() {
         const portal = await getPortal(portalToken);
         if (!isActive) return;
         setGuestName(portal.holder_name);
-        setStartDateISO(new Date(portal.access_start).toISOString().slice(0, 10));
-        setEndDateISO(new Date(portal.access_end).toISOString().slice(0, 10));
+        setStartDateTime(portal.access_start);
+        setEndDateTime(portal.access_end);
       } catch {
         if (!isActive) return;
       }
@@ -235,8 +235,8 @@ export default function ReservationDetailPage() {
 
           <div className={styles.dateRow}>
             <div className={styles.dateCell}>
-              <p className={styles.dateMain}>{formatDateMain(startDateISO)}</p>
-              <p className={styles.dateSub}>{formatTimeLabel(startDateISO)}</p>
+              <p className={styles.dateMain}>{formatDateMain(startDateTime)}</p>
+              <p className={styles.dateSub}>{formatTimeLabel(startDateTime)}</p>
             </div>
 
             <div className={styles.arrow} aria-hidden="true">
@@ -244,8 +244,8 @@ export default function ReservationDetailPage() {
             </div>
 
             <div className={styles.dateCell}>
-              <p className={styles.dateMain}>{formatDateMain(endDateISO)}</p>
-              <p className={styles.dateSub}>{formatTimeLabel(endDateISO, true)}</p>
+              <p className={styles.dateMain}>{formatDateMain(endDateTime)}</p>
+              <p className={styles.dateSub}>{formatTimeLabel(endDateTime)}</p>
             </div>
           </div>
 

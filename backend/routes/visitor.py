@@ -28,16 +28,22 @@ def _to_utc(value: datetime) -> datetime:
 
 def _calculate_day_pass_end_time(start: datetime, num_days: int) -> datetime:
     """
-    Calculate end time for day passes.
-    For N days, end at 11:59:59 PM of the Nth day (inclusive).
-    Example: 1-day pass starting Apr 14 3:04 PM ends Apr 14 11:59:59 PM
-    Example: 2-day pass starting Apr 14 3:04 PM ends Apr 15 11:59:59 PM
+    Calculate end time for day passes in CST timezone.
+    For N days, end at 11:59:59 PM CST of the Nth day (inclusive).
+    Example: 1-day pass starting Apr 14 3:04 PM CDT ends Apr 14 11:59:59 PM CDT
+    Example: 2-day pass starting Apr 14 3:04 PM CDT ends Apr 15 11:59:59 PM CDT
     """
-    # Add (num_days - 1) full days to start time
-    end_datetime = start + timedelta(days=num_days - 1)
-    # Set to 11:59:59 PM UTC (end of day)
-    end_datetime = end_datetime.replace(hour=23, minute=59, second=59, microsecond=0)
-    return end_datetime
+    # Convert start to CST to work with local dates
+    start_cst = start.astimezone(CST) if start.tzinfo else start.replace(tzinfo=pytz.UTC).astimezone(CST)
+    
+    # Add (num_days - 1) full days to get to the last day
+    end_date_cst = start_cst + timedelta(days=num_days - 1)
+    
+    # Set to 23:59:59 in CST
+    end_cst = end_date_cst.replace(hour=23, minute=59, second=59, microsecond=0)
+    
+    # Convert back to UTC for storage
+    return end_cst.astimezone(pytz.UTC)
 
 
 def _portal_base_url() -> str:
