@@ -215,8 +215,7 @@ export default function ReservationDetailPage() {
         {error ? <p className={styles.subtitle}>{error}</p> : null}
 
         <Card className={styles.card}>
-          <p className={styles.resIdLabel}>Pass #</p>
-          <p className={styles.resIdValue}>{reservationId}</p>
+          <p className={styles.resIdLabel}>Pass # {passId}</p>
 
           <div className={styles.guestRow}>
             <img src={personIcon} alt="" aria-hidden="true" className={styles.guestIcon} />
