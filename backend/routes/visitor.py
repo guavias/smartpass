@@ -66,6 +66,7 @@ def _serialize_visitor(doc: dict) -> VisitorResponse:
         num_days=doc.get("num_days", 1),
         access_granted=status == "active",
         status=status,
+        pass_type="visitor",
     )
 
 

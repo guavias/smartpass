@@ -61,6 +61,7 @@ def _serialize_guest(doc: dict) -> GuestResponse:
         access_end=doc["access_end"],
         access_granted=status == "active",
         status=status,
+        pass_type="guest",
     )
 
 
