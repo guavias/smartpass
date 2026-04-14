@@ -488,6 +488,8 @@ export default function BookPassPage() {
         phone: trimmedPhone,
         vehicle_info: "N/A",
         num_days: days,
+        num_adults: adults,
+        num_children: children,
         payment_amount: pricing.total,
         payment_method: "card",
         payment_source_id: paymentSourceId,
