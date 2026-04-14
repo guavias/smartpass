@@ -93,7 +93,7 @@
 .calendarWrapper :global(.rdp) {
   width: 100%;
   margin: 0;
-  --rdp-cell-size: 64px;
+  --rdp-cell-size: 56px;
   position: relative;
 }
 
@@ -105,7 +105,9 @@
 
 .calendarWrapper :global(.rdp-month_grid),
 .calendarWrapper :global(.rdp-table) {
+  display: table;
   table-layout: fixed;
+  border-collapse: separate;
   border-spacing: 8px;
 }
 
@@ -113,16 +115,27 @@
   width: 100%;
 }
 
+.calendarWrapper :global(.rdp-week) {
+  display: table-row;
+}
+
+.calendarWrapper :global(.rdp-weekday),
 .calendarWrapper :global(.rdp-day),
 .calendarWrapper :global(.rdp-cell) {
-  width: auto;
-  height: auto;
+  display: table-cell;
+  vertical-align: middle;
+}
+
+.calendarWrapper :global(.rdp-day),
+.calendarWrapper :global(.rdp-cell) {
+  width: var(--rdp-cell-size);
+  height: var(--rdp-cell-size);
   padding: 0;
 }
 
 .calendarWrapper :global(.rdp-day_button) {
   width: 100%;
-  height: auto;
+  height: 100%;
   aspect-ratio: 1 / 1;
 }
 
