@@ -31,8 +31,11 @@ class VisitorResponse(VisitorBase):
     access_end: datetime
     payment_status: str
     payment_reference: Optional[str] = None
+    payment_amount: float
+    num_days: int
     qr_refresh_seconds: int = 60
     access_granted: bool = False
+    status: str
 
 
 class GuestBase(BaseModel):
@@ -57,6 +60,7 @@ class GuestResponse(GuestBase):
     access_end: datetime
     qr_refresh_seconds: int = 60
     access_granted: bool = False
+    status: str
 
 
 class GuestLookupRequest(BaseModel):

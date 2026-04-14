@@ -41,25 +41,27 @@ export default function ReservationDetailPage() {
 
   const [guestName, setGuestName] = useState("Loading...");
   const [portalToken, setPortalToken] = useState(state.portalToken ?? "");
+  const [passType, setPassType] = useState<"visitor" | "guest" | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [numDays, setNumDays] = useState(1);
   const passId = state.passId ?? params.id ?? "";
 
-  const adults: number = 2;
-  const children: number = 1;
-  const adultRate = 15;
-  const childRate = 10;
-  const days: number = 2;
   const [startDateISO, setStartDateISO] = useState("2026-02-15");
   const [endDateISO, setEndDateISO] = useState("2026-02-16");
 
+  // For visitor passes: show 1 adult (single ticket), 0 children
+  // For guest passes: don't show breakdown (we don't have pricing info)
+  const adults: number = passType === "visitor" ? 1 : 0;
+  const children: number = 0;
+  const days: number = numDays;
+  
   const pricing = {
-    adultLine: adults * adultRate * days,
-    childLine: children * childRate * days,
-    subtotal: adults * adultRate * days + children * childRate * days,
+    adultLine: passType === "visitor" ? paymentAmount : 0,
+    childLine: 0,
+    subtotal: passType === "visitor" ? paymentAmount : 0,
     tax: 0,
-    total: 0,
+    total: paymentAmount,
   };
-  pricing.tax = Number((pricing.subtotal * 0.0825).toFixed(2));
-  pricing.total = Number((pricing.subtotal + pricing.tax).toFixed(2));
 
   const qrImageUrl = useMemo(() => {
     if (!portalToken) return "";
@@ -86,11 +88,20 @@ export default function ReservationDetailPage() {
             }
           }
           
-          if (!isActive) return;
+        if (!isActive) return;
           setPortalToken(pass.portal_token);
           setGuestName(pass.name);
           setStartDateISO(new Date(pass.access_start).toISOString().slice(0, 10));
           setEndDateISO(new Date(pass.access_end).toISOString().slice(0, 10));
+          
+          // Extract pass-specific data
+          const type = pass.pass_type as "visitor" | "guest";
+          setPassType(type);
+          
+          if (type === "visitor" && "payment_amount" in pass && "num_days" in pass) {
+            setPaymentAmount(pass.payment_amount);
+            setNumDays(pass.num_days);
+          }
         }
       } catch (err) {
         if (!isActive) return;
@@ -243,36 +254,34 @@ export default function ReservationDetailPage() {
           </button>
           <p className={styles.qrNote}>QR code refreshes every minute.</p>
 
-          <div className={styles.breakdown}>
-            <div className={styles.breakdownSummary}>Price Breakdown</div>
-            <div className={styles.breakdownBox}>
-              {adults > 0 && (
-                <div className={styles.breakdownRow}>
-                  <span>
-                    {adults} Adult Day Pass × {days} {days === 1 ? "day" : "days"}
-                  </span>
-                  <span>{money(pricing.adultLine)}</span>
+          {passType === "visitor" && (
+            <div className={styles.breakdown}>
+              <div className={styles.breakdownSummary}>Price Breakdown</div>
+              <div className={styles.breakdownBox}>
+                {adults > 0 && (
+                  <div className={styles.breakdownRow}>
+                    <span>
+                      {adults} Adult Day Pass × {days} {days === 1 ? "day" : "days"}
+                    </span>
+                    <span>{money(pricing.adultLine)}</span>
+                  </div>
+                )}
+                {children > 0 && (
+                  <div className={styles.breakdownRow}>
+                    <span>
+                      {children} Child Day Pass × {days} {days === 1 ? "day" : "days"}
+                    </span>
+                    <span>{money(pricing.childLine)}</span>
+                  </div>
+                )}
+                <div className={styles.divider} />
+                <div className={styles.breakdownTotal}>
+                  <span>Total</span>
+                  <span>{money(pricing.total)}</span>
                 </div>
-              )}
-              {children > 0 && (
-                <div className={styles.breakdownRow}>
-                  <span>
-                    {children} Child Day Pass × {days} {days === 1 ? "day" : "days"}
-                  </span>
-                  <span>{money(pricing.childLine)}</span>
-                </div>
-              )}
-              <div className={styles.breakdownRow}>
-                <span>Tax (TX 8.25%)</span>
-                <span>{money(pricing.tax)}</span>
-              </div>
-              <div className={styles.divider} />
-              <div className={styles.breakdownTotal}>
-                <span>Total</span>
-                <span>{money(pricing.total)}</span>
               </div>
             </div>
-          </div>
+          )}
         </Card>
       </div>
 

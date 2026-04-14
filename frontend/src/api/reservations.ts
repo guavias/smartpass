@@ -16,12 +16,16 @@ export type VisitorPassResponse = {
 	id: string;
 	portal_token: string;
 	portal_url: string;
+	pass_type: "visitor";
 	name: string;
 	email: string;
 	phone?: string;
 	access_start: string;
 	access_end: string;
 	payment_status: string;
+	payment_amount: number;
+	num_days: number;
+	status: string;
 };
 
 export type GuestLookupRequest = {
@@ -34,11 +38,13 @@ export type GuestPassResponse = {
 	reservation_id: string;
 	portal_token: string;
 	portal_url: string;
+	pass_type: "guest";
 	name: string;
 	email: string;
 	phone?: string;
 	access_start: string;
 	access_end: string;
+	status: string;
 };
 
 export type PortalResponse = {

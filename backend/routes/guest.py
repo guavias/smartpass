@@ -25,7 +25,29 @@ def _portal_base_url() -> str:
     return os.getenv("PORTAL_BASE_URL", os.getenv("BASE_URL", "http://localhost:8000"))
 
 
+def _calculate_pass_status(doc: dict) -> str:
+    """Calculate the current status of a pass based on access windows and stored status"""
+    now = utcnow()
+    # If revoked, always revoked
+    if doc.get("status") == "revoked":
+        return "revoked"
+    # Check if not yet active
+    access_start = doc.get("access_start")
+    if access_start and access_start.tzinfo is None:
+        access_start = access_start.replace(tzinfo=timezone.utc)
+    if access_start and now < access_start:
+        return "inactive"
+    # Check if expired
+    access_end = doc.get("access_end")
+    if access_end and access_end.tzinfo is None:
+        access_end = access_end.replace(tzinfo=timezone.utc)
+    if access_end and now > access_end:
+        return "expired"
+    return "active"
+
+
 def _serialize_guest(doc: dict) -> GuestResponse:
+    status = _calculate_pass_status(doc)
     return GuestResponse(
         id=doc["id"],
         name=doc["name"],
@@ -37,7 +59,8 @@ def _serialize_guest(doc: dict) -> GuestResponse:
         created_at=doc["created_at"],
         access_start=doc["access_start"],
         access_end=doc["access_end"],
-        access_granted=doc.get("status") == "active",
+        access_granted=status == "active",
+        status=status,
     )
 
 
