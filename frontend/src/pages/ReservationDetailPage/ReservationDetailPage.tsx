@@ -39,7 +39,6 @@ export default function ReservationDetailPage() {
   const [qrRefreshedAt, setQrRefreshedAt] = useState<string>("");
   const [qrFlash, setQrFlash] = useState(false);
 
-  const [reservationId, setReservationId] = useState(state.reservationId ?? "");
   const [guestName, setGuestName] = useState("Loading...");
   const [portalToken, setPortalToken] = useState(state.portalToken ?? "");
   const passId = state.passId ?? params.id ?? "";
