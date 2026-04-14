@@ -116,26 +116,26 @@
 }
 
 .calendarWrapper :global(.rdp-week) {
-  display: table-row;
+  display: table-row !important;
 }
 
 .calendarWrapper :global(.rdp-weekday),
 .calendarWrapper :global(.rdp-day),
 .calendarWrapper :global(.rdp-cell) {
-  display: table-cell;
-  vertical-align: middle;
+  display: table-cell !important;
+  vertical-align: middle !important;
 }
 
 .calendarWrapper :global(.rdp-day),
 .calendarWrapper :global(.rdp-cell) {
-  width: var(--rdp-cell-size);
-  height: var(--rdp-cell-size);
-  padding: 0;
+  width: var(--rdp-cell-size) !important;
+  height: var(--rdp-cell-size) !important;
+  padding: 0 !important;
 }
 
 .calendarWrapper :global(.rdp-day_button) {
-  width: 100%;
-  height: 100%;
+  width: 100% !important;
+  height: 100% !important;
   aspect-ratio: 1 / 1;
 }
 
