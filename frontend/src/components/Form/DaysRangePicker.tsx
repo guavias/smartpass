@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { DayPicker, DateRange } from "react-day-picker";
+import "react-day-picker/style.css";
 
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
