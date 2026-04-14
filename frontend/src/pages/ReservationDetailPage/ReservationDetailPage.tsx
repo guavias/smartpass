@@ -91,11 +91,6 @@ export default function ReservationDetailPage() {
           setGuestName(pass.name);
           setStartDateISO(new Date(pass.access_start).toISOString().slice(0, 10));
           setEndDateISO(new Date(pass.access_end).toISOString().slice(0, 10));
-          
-          // For guest passes, also set reservation ID if available
-          if ('reservation_id' in pass) {
-            setReservationId(pass.reservation_id);
-          }
         }
       } catch (err) {
         if (!isActive) return;
