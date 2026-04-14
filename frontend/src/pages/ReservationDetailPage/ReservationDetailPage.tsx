@@ -3,7 +3,7 @@ import { useLocation, useParams } from "react-router-dom";
 import Card from "../../components/Card/Card";
 import personIcon from "../../assets/person.png";
 import { ApiError } from "../../api/client";
-import { getGuestPass, getPortal, getPortalQr } from "../../api/reservations";
+import { getGuestPass, getVisitorPass, getPortal, getPortalQr, VisitorPassResponse, GuestPassResponse } from "../../api/reservations";
 import styles from "./ReservationDetailPage.module.css";
 
 type LookupState = {
@@ -74,13 +74,29 @@ export default function ReservationDetailPage() {
       if (!passId && !portalToken) return;
       try {
         if (!portalToken && passId) {
-          const guest = await getGuestPass(passId);
+          // Try to load as guest pass first, then fall back to visitor pass
+          let pass: GuestPassResponse | VisitorPassResponse | null = null;
+          try {
+            pass = await getGuestPass(passId);
+          } catch {
+            // If guest fails, try visitor
+            try {
+              pass = await getVisitorPass(passId);
+            } catch {
+              throw new Error("Unable to load pass details");
+            }
+          }
+          
           if (!isActive) return;
-          setPortalToken(guest.portal_token);
-          setReservationId(guest.reservation_id);
-          setGuestName(guest.name);
-          setStartDateISO(new Date(guest.access_start).toISOString().slice(0, 10));
-          setEndDateISO(new Date(guest.access_end).toISOString().slice(0, 10));
+          setPortalToken(pass.portal_token);
+          setGuestName(pass.name);
+          setStartDateISO(new Date(pass.access_start).toISOString().slice(0, 10));
+          setEndDateISO(new Date(pass.access_end).toISOString().slice(0, 10));
+          
+          // For guest passes, also set reservation ID if available
+          if ('reservation_id' in pass) {
+            setReservationId(pass.reservation_id);
+          }
         }
       } catch (err) {
         if (!isActive) return;

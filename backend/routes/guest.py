@@ -33,7 +33,7 @@ def _serialize_guest(doc: dict) -> GuestResponse:
         phone=doc.get("phone"),
         reservation_id=doc["reservation_id"],
         portal_token=doc["portal_token"],
-        portal_url=f"{_portal_base_url()}/api/v1/access/portal/{doc['portal_token']}",
+        portal_url=f"{_portal_base_url()}/reservation/{doc['id']}",
         created_at=doc["created_at"],
         access_start=doc["access_start"],
         access_end=doc["access_end"],
@@ -96,7 +96,7 @@ async def create_guest_pass(guest: GuestCreate):
         }
         created = await create_pass(pass_doc)
 
-        portal_url = f"{_portal_base_url()}/api/v1/access/portal/{portal_token}"
+        portal_url = f"{_portal_base_url()}/reservation/{guest_id}"
         email_result = EmailService.send_portal_access_email(
             recipient_email=guest.email,
             recipient_name=guest.name,

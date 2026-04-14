@@ -34,7 +34,7 @@ def _serialize_visitor(doc: dict) -> VisitorResponse:
         phone=doc.get("phone"),
         vehicle_info=doc.get("vehicle_info"),
         portal_token=doc["portal_token"],
-        portal_url=f"{_portal_base_url()}/api/v1/access/portal/{doc['portal_token']}",
+        portal_url=f"{_portal_base_url()}/reservation/{doc['id']}",
         created_at=doc["created_at"],
         access_start=doc["access_start"],
         access_end=doc["access_end"],
@@ -100,7 +100,7 @@ async def create_visitor_pass(visitor: VisitorCreate):
         }
         created = await create_pass(pass_doc)
 
-        portal_url = f"{_portal_base_url()}/api/v1/access/portal/{portal_token}"
+        portal_url = f"{_portal_base_url()}/reservation/{visitor_id}"
         email_result = EmailService.send_portal_access_email(
             recipient_email=visitor.email,
             recipient_name=visitor.name,
