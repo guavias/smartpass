@@ -5,6 +5,7 @@ pydantic[email]==2.10.4
 resend==2.23.0
 qrcode[pil]==7.4.2
 httpx==0.28.1
+pytz==2024.1
 # Security & Utilities
 python-dotenv==1.0.1 
 passlib[bcrypt]==1.7.4  
