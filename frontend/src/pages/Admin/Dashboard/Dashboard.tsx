@@ -75,8 +75,28 @@ function toScanResult(value?: string): ScanResult {
   return value?.toLowerCase() === "approved" || value?.toLowerCase() === "allow" ? "allow" : "deny";
 }
 
+/**
+ * Parse an ISO datetime string and ensure it's treated as UTC.
+ * The backend always sends UTC times, so we need to ensure they're handled correctly.
+ */
+function parseUTCDateTime(isoDateTime: string): Date {
+  if (!isoDateTime) {
+    return new Date(); // Fallback to current time if invalid
+  }
+  
+  // Ensure the string has timezone indicator
+  let cleanDateTime = isoDateTime.trim();
+  
+  // If no timezone indicator is present, assume UTC
+  if (!cleanDateTime.includes('Z') && !cleanDateTime.includes('+') && !cleanDateTime.includes('-', 10)) {
+    cleanDateTime += 'Z';
+  }
+  
+  return new Date(cleanDateTime);
+}
+
 function fmtDateTime(value: string) {
-  return new Date(value).toLocaleString(undefined, {
+  return parseUTCDateTime(value).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -87,7 +107,7 @@ function fmtDateTime(value: string) {
 }
 
 function toInputDateTimeValue(iso: string) {
-  const d = new Date(iso);
+  const d = parseUTCDateTime(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(
     d.getMinutes()
@@ -180,7 +200,7 @@ export default function Dashboard() {
 
   const todaysLogs = useMemo(() => {
     const today = new Date().toDateString();
-    return logs.filter((l) => new Date(l.at).toDateString() === today);
+    return logs.filter((l) => parseUTCDateTime(l.at).toDateString() === today);
   }, [logs]);
 
   const todayAccepted = todaysLogs.filter((l) => l.result === "allow").length;

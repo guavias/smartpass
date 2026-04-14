@@ -17,13 +17,33 @@ function money(n: number) {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
+/**
+ * Parse an ISO datetime string and ensure it's treated as UTC.
+ * The backend always sends UTC times, so we need to ensure they're handled correctly.
+ */
+function parseUTCDateTime(isoDateTime: string): Date {
+  if (!isoDateTime) {
+    return new Date(); // Fallback to current time if invalid
+  }
+  
+  // Ensure the string has timezone indicator
+  let cleanDateTime = isoDateTime.trim();
+  
+  // If no timezone indicator is present, assume UTC
+  if (!cleanDateTime.includes('Z') && !cleanDateTime.includes('+') && !cleanDateTime.includes('-', 10)) {
+    cleanDateTime += 'Z';
+  }
+  
+  return new Date(cleanDateTime);
+}
+
 function formatDateMain(isoDateTime: string) {
-  const d = new Date(isoDateTime);
+  const d = parseUTCDateTime(isoDateTime);
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function formatTimeLabel(isoDateTime: string) {
-  const d = new Date(isoDateTime);
+  const d = parseUTCDateTime(isoDateTime);
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 

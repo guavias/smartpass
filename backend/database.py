@@ -23,6 +23,16 @@ def _normalize(doc: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
 	data = dict(doc)
 	if "_id" in data:
 		data["_id"] = str(data["_id"])
+	
+	# Ensure all datetime fields have UTC timezone info
+	for key, value in data.items():
+		if isinstance(value, datetime):
+			if value.tzinfo is None:
+				data[key] = value.replace(tzinfo=timezone.utc)
+			else:
+				# Convert to UTC if it's not already
+				data[key] = value.astimezone(timezone.utc)
+	
 	return data
 
 
@@ -69,7 +79,7 @@ async def create_pass(pass_data: dict[str, Any]) -> dict[str, Any]:
 	payload = dict(pass_data)
 	payload.setdefault("created_at", utcnow())
 	await db.passes.insert_one(payload)
-	return payload
+	return _normalize(payload)
 
 
 async def update_pass(pass_id: str, updates: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -117,7 +127,7 @@ async def log_access_event(event: dict[str, Any]) -> dict[str, Any]:
 	payload = dict(event)
 	payload.setdefault("timestamp", utcnow())
 	await db.access_logs.insert_one(payload)
-	return payload
+	return _normalize(payload)
 
 
 async def get_access_logs(limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:

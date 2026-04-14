@@ -215,11 +215,6 @@ export default function BookingConfirmationPage() {
                 <span className={styles.mono}>{data.passId}</span>
               </div>
 
-              <div className={styles.label}>Portal Token</div>
-              <div className={styles.value}>
-                <span className={styles.mono}>{data.portalToken || "N/A"}</span>
-              </div>
-
               <div className={styles.label}>Name</div>
               <div className={styles.value}>
                 {data.firstName} {data.lastName}

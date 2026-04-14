@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # ============ Visitor & Guest Models ============
@@ -100,6 +100,8 @@ class Pass(BaseModel):
 
 
 class PortalAccessResponse(BaseModel):
+    model_config = ConfigDict(ser_json_timedelta="float")
+    
     pass_id: str
     portal_token: str
     user_type: Literal["visitor", "guest"]
