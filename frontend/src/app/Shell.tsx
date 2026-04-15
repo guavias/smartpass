@@ -4,7 +4,8 @@ import Footer from "../components/Footer/Footer";
 import { isEmbedMode } from "./embed";
 
 function activeKeyFromPath(pathname: string): NavKey {
-  if (pathname.startsWith("/book") || pathname.startsWith("/book-pass")) return "crappie";
+  if (pathname.startsWith("/demo/overnight-booking")) return "bookNow";
+  if (pathname.startsWith("/book-pass")) return "crappie";
   if (pathname.startsWith("/admin")) return "crappie"; //keep crappie highlighted
   if (pathname.startsWith("/find") || pathname.startsWith("/reservation")) return "crappie";
   return "crappie";

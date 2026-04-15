@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import Card from "../../components/Card/Card";
 import { findGuestPortal, getVisitorPass } from "../../api/reservations";
 import { ApiError } from "../../api/client";
@@ -7,8 +7,10 @@ import styles from "./ReservationFindPage.module.css";
 
 export default function ReservationFindPage() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [reservationId, setReservationId] = useState("");
+  const location = useLocation();
+  const state = (location.state as { email?: string; reservationId?: string } | null) ?? null;
+  const [email, setEmail] = useState(state?.email ?? "");
+  const [reservationId, setReservationId] = useState(state?.reservationId ?? "");
   const [errors, setErrors] = useState<{ email?: string; reservationId?: string; submit?: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 

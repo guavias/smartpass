@@ -29,6 +29,15 @@ export type GuestLookupRequest = {
 	email: string;
 };
 
+export type CreateGuestPassRequest = {
+	name: string;
+	email: string;
+	phone: string;
+	reservation_id: string;
+	check_in: string;
+	check_out: string;
+};
+
 export type GuestPassResponse = {
 	id: string;
 	reservation_id: string;
@@ -72,6 +81,13 @@ export async function getVisitorPass(passId: string): Promise<VisitorPassRespons
 
 export async function findGuestPortal(payload: GuestLookupRequest): Promise<GuestPassResponse> {
 	return apiFetch<GuestPassResponse>("/api/v1/guests/find", {
+		method: "POST",
+		body: JSON.stringify(payload),
+	});
+}
+
+export async function createGuestPass(payload: CreateGuestPassRequest): Promise<GuestPassResponse> {
+	return apiFetch<GuestPassResponse>("/api/v1/guests/", {
 		method: "POST",
 		body: JSON.stringify(payload),
 	});

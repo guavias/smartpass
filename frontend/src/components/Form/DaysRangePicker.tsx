@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DayPicker, DateRange } from "react-day-picker";
 
 function startOfDay(d: Date) {
@@ -34,6 +34,8 @@ type Props = {
   minDays?: number;
   maxDays?: number;
   initialDays?: number;
+  durationLabel?: "days" | "nights";
+  selectedRange?: { startDate?: Date; endDate?: Date };
   onChange?: (value: { startDate?: Date; endDate?: Date; days: number }) => void;
 };
 
@@ -41,6 +43,8 @@ export default function DaysRangePicker({
   minDays = 1,
   maxDays = 14,
   initialDays = 1,
+  durationLabel = "days",
+  selectedRange,
   onChange,
 }: Props) {
   const [range, setRange] = useState<DateRange | undefined>(undefined);
@@ -52,8 +56,25 @@ export default function DaysRangePicker({
 
   const startDate = range?.from;
   const endDate = range?.to;
+  const checkoutDate = startDate && endDate ? addDays(endDate, 1) : undefined;
+  const safeCheckoutDate =
+    checkoutDate && checkoutDate.getTime() <= maxDate.getTime() ? checkoutDate : undefined;
   const selectedDays =
     startDate && endDate ? clamp(diffDaysInclusive(startDate, endDate), minDays, maxDays) : undefined;
+
+  useEffect(() => {
+    if (!selectedRange) return;
+
+    const from = selectedRange.startDate ? startOfDay(selectedRange.startDate) : undefined;
+    const to = selectedRange.endDate ? startOfDay(selectedRange.endDate) : undefined;
+
+    if (!from) {
+      setRange(undefined);
+      return;
+    }
+
+    setRange({ from, to: to ?? from });
+  }, [selectedRange?.startDate, selectedRange?.endDate]);
 
   function formatDateMMDDYYYY(date: Date) {
     const mm = String(date.getMonth() + 1).padStart(2, "0");
@@ -107,16 +128,14 @@ export default function DaysRangePicker({
 
 return (
   <div className="chFormGrid">
-    <div className="chField">
-      <div className="ch-fieldLabel">ACCESS DATES</div>
-    </div>
-
     {/* Calendar */}
     <div className="chCalendarShell">
       <DayPicker
         mode="range"
         selected={range}
         onSelect={handleSelect}
+        modifiers={{ checkout: safeCheckoutDate }}
+        modifiersClassNames={{ checkout: "rdp-day_checkout" }}
         numberOfMonths={1}
         fromDate={today}
         toDate={maxDate}
@@ -129,7 +148,7 @@ return (
       <div className="chHelperText">
         {startDate && endDate ? (
           <>
-            {formatDateMMDDYYYY(startDate)} - {formatDateMMDDYYYY(endDate)} ({selectedDays} {selectedDays === 1 ? "day" : "days"})
+            {formatDateMMDDYYYY(startDate)} - {formatDateMMDDYYYY(endDate)} ({selectedDays} {selectedDays === 1 ? durationLabel.slice(0, -1) : durationLabel})
           </>
         ) : (
           <>Select a start and end date.</>

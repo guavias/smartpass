@@ -6,6 +6,8 @@ import ReservationFindPage from "../pages/ReservationFindPage/ReservationFindPag
 import ReservationDetailPage from "../pages/ReservationDetailPage/ReservationDetailPage";
 import BookPassPage from "../pages/BookPassPage/BookPassPage";
 import BookingConfirmationPage from "../pages/BookingConfirmationPage/BookingConfirmationPage";
+import OvernightBookingDemoPage from "../pages/OvernightBookingDemoPage/OvernightBookingDemoPage";
+import PaymentPage from "../pages/PaymentPage/PaymentPage";
 import Login from "../pages/Admin/Login";
 import Dashboard from "../pages/Admin/Dashboard/Dashboard";
 
@@ -19,6 +21,8 @@ export const router = createBrowserRouter([
       { path: "reservation/find", element: <ReservationFindPage /> },
       { path: "book-pass", element: <BookPassPage /> },
       { path: "book", element: <BookPassPage /> },
+      { path: "demo/overnight-booking", element: <OvernightBookingDemoPage /> },
+      { path: "demo/payment", element: <PaymentPage /> },
       { path: "booking-confirmation", element: <BookingConfirmationPage /> },
       { path: "confirmation", element: <BookingConfirmationPage /> },
       { path: "reservation/:id", element: <ReservationDetailPage /> },
