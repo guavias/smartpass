@@ -46,6 +46,11 @@ class RotatingQRCodeService:
         message = f"{pass_id}:{token_seed}:{minute_slice}".encode("utf-8")
         return hmac.new(self.secret, message, hashlib.sha256).hexdigest()[:24]
 
+    def get_current_minute(self, at_time: Optional[datetime] = None) -> int:
+        """Get the current minute slice for comparison"""
+        now = at_time or utcnow()
+        return self._minute_slice(now)
+
     def create_payload(self, pass_id: str, token_seed: str, at_time: Optional[datetime] = None) -> dict[str, Any]:
         now = at_time or utcnow()
         minute = self._minute_slice(now)
@@ -58,6 +63,7 @@ class RotatingQRCodeService:
             "generated_at": now,
             "valid_until": valid_until,
             "refresh_seconds": self.refresh_seconds,
+            "current_minute": minute,  # Return the minute for DB storage
         }
 
     def validate_payload(self, qr_payload: str, pass_id: str, token_seed: str, at_time: Optional[datetime] = None) -> bool:

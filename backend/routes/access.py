@@ -86,7 +86,10 @@ async def get_rotating_qr(portal_token: str):
         raise HTTPException(status_code=403, detail=f"Portal is {status}")
 
     payload = qr_service.create_payload(pass_id=doc["id"], token_seed=doc["token_seed"])
-    await update_pass(doc["id"], {"last_rotated_at": payload["generated_at"]})
+    await update_pass(doc["id"], {
+        "last_rotated_at": payload["generated_at"],
+        "last_valid_minute": payload["current_minute"]
+    })
     return RotatingQRResponse(**payload)
 
 
@@ -98,7 +101,10 @@ async def get_rotating_qr_image(portal_token: str):
         raise HTTPException(status_code=403, detail=f"Portal is {status}")
 
     payload = qr_service.create_payload(pass_id=doc["id"], token_seed=doc["token_seed"])
-    await update_pass(doc["id"], {"last_rotated_at": payload["generated_at"]})
+    await update_pass(doc["id"], {
+        "last_rotated_at": payload["generated_at"],
+        "last_valid_minute": payload["current_minute"]
+    })
 
     png_bytes = _render_qr_png(payload["qr_payload"])
     headers = {
@@ -128,7 +134,10 @@ async def stream_rotating_qr(portal_token: str, websocket: WebSocket):
             payload = qr_service.create_payload(pass_id=doc["id"], token_seed=doc["token_seed"])
             if payload["qr_payload"] != last_payload:
                 last_payload = payload["qr_payload"]
-                await update_pass(doc["id"], {"last_rotated_at": payload["generated_at"]})
+                await update_pass(doc["id"], {
+                    "last_rotated_at": payload["generated_at"],
+                    "last_valid_minute": payload["current_minute"]
+                })
                 await websocket.send_json(
                     {
                         "type": "qr_update",
@@ -151,6 +160,32 @@ async def stream_rotating_qr(portal_token: str, websocket: WebSocket):
             await websocket.close(code=1011, reason="WebSocket stream error")
         except Exception:
             pass
+
+
+@router.get("/check-minute/{pass_id}")
+async def check_current_minute(pass_id: str):
+    """
+    Hardware endpoint to check the current valid minute for a pass.
+    Useful for validating QR codes without parsing them.
+    
+    Returns the last valid minute stored in DB so hardware can verify
+    if a scanned QR's minute (m) is current or expired.
+    """
+    doc = await get_pass_by_id(pass_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Pass not found")
+    
+    status = _status_for_doc(doc)
+    current_minute = qr_service.get_current_minute()
+    last_valid_minute = doc.get("last_valid_minute", current_minute)
+    
+    return {
+        "pass_id": doc["id"],
+        "status": status,
+        "current_minute": current_minute,
+        "last_valid_minute": last_valid_minute,
+        "minute_match": current_minute == last_valid_minute or abs(current_minute - last_valid_minute) <= 1,
+    }
 
 
 @router.post("/validate", response_model=ValidateQRResponse)

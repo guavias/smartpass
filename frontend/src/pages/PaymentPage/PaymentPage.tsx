@@ -2,9 +2,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Card from "../../components/Card/Card";
 import Field from "../../components/Form/Field";
+import { createGuestPass } from "../../api/reservations";
+import { ApiError } from "../../api/client";
 import styles from "./PaymentPage.module.css";
 
 type PaymentNavState = {
+  reservationId?: string;
+  guestName?: string;
+  guestEmail?: string;
+  guestPhone?: string;
   adults?: number;
   children?: number;
   pets?: number;
@@ -20,6 +26,11 @@ type PaymentNavState = {
 
 const DEFAULT_RATE = 145;
 const TAX_RATE = 0.0825;
+const SQUARE_APP_ID = import.meta.env.VITE_SQUARE_APP_ID as string | undefined;
+const SQUARE_ENV = (import.meta.env.VITE_SQUARE_ENV as string | undefined)?.toLowerCase() ?? "sandbox";
+const SQUARE_LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID as string | undefined;
+const SQUARE_SCRIPT_URL =
+  SQUARE_ENV === "production" ? "https://web.squarecdn.com/v1/square.js" : "https://sandbox.web.squarecdn.com/v1/square.js";
 
 function money(value: number) {
   return value.toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -47,6 +58,11 @@ function formatCvvInput(value: string) {
   return value.replace(/\D/g, "").slice(0, 4);
 }
 
+function createReservationId(): string {
+  const stamp = Date.now().toString().slice(-6);
+  return `RES-${stamp}`;
+}
+
 export default function PaymentPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -67,11 +83,21 @@ export default function PaymentPage() {
   const [cardNumber, setCardNumber] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
   const [cardCvv, setCardCvv] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [squareReady, setSquareReady] = useState(false);
   const guestsDropdownRef = useRef<HTMLDivElement | null>(null);
+  const squareCardContainerRef = useRef<HTMLDivElement | null>(null);
+  const squareCardRef = useRef<any>(null);
+  const squareScriptPromiseRef = useRef<Promise<void> | null>(null);
 
   const nights = Math.max(1, state.nights ?? 1);
   const stayType = state.stayType ?? "Cabin Studio";
   const nightlyRate = state.nightlyRate ?? DEFAULT_RATE;
+  const guestName = state.guestName || "Guest";
+  const guestEmail = state.guestEmail || "";
+  const guestPhone = state.guestPhone || "";
 
   useEffect(() => {
     if (!isGuestsOpen) return;
@@ -85,6 +111,75 @@ export default function PaymentPage() {
     window.addEventListener("mousedown", handleOutsideClick);
     return () => window.removeEventListener("mousedown", handleOutsideClick);
   }, [isGuestsOpen]);
+
+  // Load Square Card
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSquareCard() {
+      if (!SQUARE_APP_ID) {
+        setSquareReady(false);
+        return;
+      }
+
+      if (!squareScriptPromiseRef.current) {
+        squareScriptPromiseRef.current = new Promise<void>((resolve, reject) => {
+          const existing = document.querySelector('script[data-square-sdk="true"]');
+          if (existing) {
+            resolve();
+            return;
+          }
+
+          const script = document.createElement("script");
+          script.src = SQUARE_SCRIPT_URL;
+          script.async = true;
+          script.dataset.squareSdk = "true";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Unable to load Square Web Payments SDK"));
+          document.head.appendChild(script);
+        });
+      }
+
+      try {
+        await squareScriptPromiseRef.current;
+        if (cancelled) return;
+
+        const square = (window as typeof window & { Square?: any }).Square;
+        if (!square) {
+          throw new Error("Square SDK not available");
+        }
+
+        const payments = square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
+        const card = await payments.card();
+        squareCardRef.current = card;
+
+        if (squareCardContainerRef.current) {
+          squareCardContainerRef.current.innerHTML = "";
+          await card.attach(squareCardContainerRef.current);
+        }
+
+        if (!cancelled) {
+          setSquareReady(true);
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setSquareReady(false);
+        squareCardRef.current = null;
+      }
+    }
+
+    void loadSquareCard();
+
+    return () => {
+      cancelled = true;
+      try {
+        squareCardRef.current?.destroy?.();
+      } catch {
+        // ignore cleanup failures
+      }
+      squareCardRef.current = null;
+    };
+  }, []);
 
   function openGuestsDropdown() {
     setDraftAdults(adults);
@@ -107,34 +202,110 @@ export default function PaymentPage() {
     return { subtotal, tax, total };
   }, [nightlyRate, nights, state.subtotal, state.tax, state.total]);
 
-  function handlePay() {
-    navigate("/demo/booking-confirmation", {
-      state: {
-        firstName,
-        lastName,
-        email,
-        phone,
-        preferredContact,
-        adults,
-        children,
-        pets,
-        checkIn: state.checkIn,
-        checkOut: state.checkOut,
-        nights,
-        stayType,
-        nightlyRate,
-        subtotal: pricing.subtotal,
-        tax: pricing.tax,
-        total: pricing.total,
-      },
-    });
+  async function handlePay() {
+    const nextErrors: Record<string, string> = {};
+
+    if (!email.trim()) {
+      nextErrors.email = "Email is required to complete your booking.";
+    }
+
+    if (!phone.trim()) {
+      nextErrors.phone = "Phone is required to complete your booking.";
+    }
+
+    if (!squareReady) {
+      const fallbackDigits = cardNumber.replace(/\D/g, "");
+      if (fallbackDigits.length < 12) {
+        nextErrors.paymentCard = "Enter a valid card number.";
+      }
+      if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) {
+        nextErrors.paymentCard = "Enter card expiry as MM/YY.";
+      }
+      if (cardCvv.length < 3) {
+        nextErrors.paymentCard = "Enter a valid CVV.";
+      }
+    }
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      return;
+    }
+
+    setSubmitError("");
+    setIsSubmitting(true);
+
+    try {
+      // Generate reservation ID at payment time (only when user submits payment)
+      const reservationId = createReservationId();
+
+      let paymentSourceId = "cnon:card-nonce-ok";
+
+      // Tokenize card via Square if available
+      if (squareCardRef.current) {
+        const tokenResult = await squareCardRef.current.tokenize();
+        if (tokenResult.status !== "OK") {
+          throw new Error(tokenResult.errors?.[0]?.message ?? "Square tokenization failed");
+        }
+        paymentSourceId = tokenResult.token;
+      }
+
+      // Create guest pass with payment
+      const idempotencyKey = `guest-${reservationId}-${Date.now()}`;
+      const checkInDate = new Date(state.checkIn || "");
+      const checkOutDate = new Date(state.checkOut || "");
+
+      const guest = await createGuestPass({
+        name: (firstName || guestName) && (lastName) ? `${firstName} ${lastName}` : (firstName || guestName),
+        email: email || guestEmail,
+        phone: phone || guestPhone,
+        reservation_id: reservationId,
+        check_in: checkInDate.toISOString(),
+        check_out: checkOutDate.toISOString(),
+        payment_amount: pricing.total,
+        payment_method: "card",
+        payment_source_id: paymentSourceId,
+        idempotency_key: idempotencyKey,
+      });
+
+      // Success - navigate to confirmation with reservation ID
+      navigate("/overnight-confirmation", {
+        state: {
+          reservationId,
+          passId: guest.id,
+          firstName: firstName || guestName.split(" ")[0] || "",
+          lastName: lastName || guestName.split(" ").slice(1).join(" ") || "",
+          email: email || guestEmail,
+          phone: phone || guestPhone,
+          preferredContact,
+          adults: state.adults || 1,
+          children: state.children || 0,
+          pets: state.pets || 0,
+          checkIn: state.checkIn,
+          checkOut: state.checkOut,
+          nights,
+          stayType,
+          nightlyRate,
+          subtotal: pricing.subtotal,
+          tax: pricing.tax,
+          total: pricing.total,
+        },
+      });
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setSubmitError(error.message);
+      } else {
+        setSubmitError(error instanceof Error ? error.message : "Unable to complete your booking. Please try again.");
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
     <div className={styles.page}>
       <div className={styles.inner}>
         <h1 className={styles.title}>Complete Your Booking</h1>
-        <p className={styles.subtitle}>This mirrors the day pass checkout layout for overnight stays.</p>
+        <p className={styles.subtitle}>Enter your details and payment information to confirm your reservation.</p>
 
         <div className={styles.grid}>
           <Card className={styles.card}>
@@ -142,11 +313,29 @@ export default function PaymentPage() {
 
             <div className={styles.formGrid}>
               <Field label="FIRST NAME">
-                <input className={styles.input} placeholder="First Name" value={firstName} onChange={(event) => setFirstName(event.target.value)} />
+                <input
+                  className={`${styles.input} ${errors.firstName ? styles.inputError : ""}`}
+                  placeholder="First Name"
+                  value={firstName}
+                  onChange={(event) => {
+                    setFirstName(event.target.value);
+                    if (errors.firstName) setErrors((prev) => ({ ...prev, firstName: "" }));
+                  }}
+                />
+                {errors.firstName && <div className={styles.fieldError}>{errors.firstName}</div>}
               </Field>
 
               <Field label="LAST NAME">
-                <input className={styles.input} placeholder="Last Name" value={lastName} onChange={(event) => setLastName(event.target.value)} />
+                <input
+                  className={`${styles.input} ${errors.lastName ? styles.inputError : ""}`}
+                  placeholder="Last Name"
+                  value={lastName}
+                  onChange={(event) => {
+                    setLastName(event.target.value);
+                    if (errors.lastName) setErrors((prev) => ({ ...prev, lastName: "" }));
+                  }}
+                />
+                {errors.lastName && <div className={styles.fieldError}>{errors.lastName}</div>}
               </Field>
 
               <div className={styles.fullRow}>
@@ -197,13 +386,33 @@ export default function PaymentPage() {
 
               <div className={styles.fullRow}>
                 <Field label="EMAIL">
-                  <input className={styles.input} placeholder="Enter your email" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+                  <input
+                    className={`${styles.input} ${errors.email ? styles.inputError : ""}`}
+                    placeholder="Enter your email"
+                    inputMode="email"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
+                    }}
+                  />
+                  {errors.email && <div className={styles.fieldError}>{errors.email}</div>}
                 </Field>
               </div>
 
               <div className={styles.fullRow}>
                 <Field label="PHONE NUMBER">
-                  <input className={styles.input} placeholder="xxx-xxx-xxxx" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} />
+                  <input
+                    className={`${styles.input} ${errors.phone ? styles.inputError : ""}`}
+                    placeholder="xxx-xxx-xxxx"
+                    inputMode="tel"
+                    value={phone}
+                    onChange={(event) => {
+                      setPhone(event.target.value);
+                      if (errors.phone) setErrors((prev) => ({ ...prev, phone: "" }));
+                    }}
+                  />
+                  {errors.phone && <div className={styles.fieldError}>{errors.phone}</div>}
                 </Field>
               </div>
 
@@ -217,7 +426,12 @@ export default function PaymentPage() {
               </div>
 
               <div className={styles.actions}>
-                <button type="button" className={styles.backBtn} onClick={() => navigate("/demo/overnight-booking")}>
+                <button
+                  type="button"
+                  className={styles.backBtn}
+                  onClick={() => navigate("/overnight-booking")}
+                  disabled={isSubmitting}
+                >
                   Back
                 </button>
               </div>
@@ -264,48 +478,59 @@ export default function PaymentPage() {
               </div>
             </details>
 
+            {submitError && <div className={styles.submitError}>{submitError}</div>}
+
             <div className={styles.payMethods}>
-              <button type="button" className={styles.walletBtn}>
-                Apple Pay
+              {squareReady && <div ref={squareCardContainerRef} id="sq-card-container" className={styles.squareCardContainer} />}
+
+              {!squareReady && (
+                <>
+                  <button type="button" className={styles.walletBtn}>
+                    Apple Pay
+                  </button>
+
+                  <button type="button" className={styles.walletBtn}>
+                    Google Pay
+                  </button>
+
+                  <div className={styles.orLine}>or pay with card</div>
+
+                  <input
+                    className={`${styles.input} ${errors.paymentCard ? styles.inputError : ""}`}
+                    value={cardNumber}
+                    onChange={(event) => setCardNumber(formatCardNumberInput(event.target.value))}
+                    placeholder="Card Number"
+                    inputMode="numeric"
+                  />
+
+                  <div className={styles.cardRow}>
+                    <input
+                      className={styles.input}
+                      value={cardExpiry}
+                      onChange={(event) => setCardExpiry(formatExpiryInput(event.target.value))}
+                      placeholder="MM/YY"
+                      inputMode="numeric"
+                    />
+                    <input
+                      className={styles.input}
+                      value={cardCvv}
+                      onChange={(event) => setCardCvv(formatCvvInput(event.target.value))}
+                      placeholder="CVV"
+                      inputMode="numeric"
+                    />
+                  </div>
+                  {errors.paymentCard && <div className={styles.fieldError}>{errors.paymentCard}</div>}
+                </>
+              )}
+
+              <button
+                type="button"
+                className={styles.payBtn}
+                onClick={handlePay}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "PROCESSING..." : `Pay ${money(pricing.total)}`}
               </button>
-
-              <button type="button" className={styles.walletBtn}>
-                Google Pay
-              </button>
-
-              <div className={styles.orLine}>or pay with card</div>
-
-              <input
-                className={styles.input}
-                value={cardNumber}
-                onChange={(event) => setCardNumber(formatCardNumberInput(event.target.value))}
-                placeholder="Card Number"
-                inputMode="numeric"
-              />
-
-              <div className={styles.cardRow}>
-                <input
-                  className={styles.input}
-                  value={cardExpiry}
-                  onChange={(event) => setCardExpiry(formatExpiryInput(event.target.value))}
-                  placeholder="MM/YY"
-                  inputMode="numeric"
-                />
-                <input
-                  className={styles.input}
-                  value={cardCvv}
-                  onChange={(event) => setCardCvv(formatCvvInput(event.target.value))}
-                  placeholder="CVV"
-                  inputMode="numeric"
-                />
-              </div>
-
-              <button type="button" className={styles.payBtn} onClick={handlePay}>
-                Pay {money(pricing.total)}
-              </button>
-              <div className={styles.payFinePrint}>
-                Overnight payment checkout is in progress. This screen mirrors the day pass payment layout.
-              </div>
             </div>
           </Card>
         </div>

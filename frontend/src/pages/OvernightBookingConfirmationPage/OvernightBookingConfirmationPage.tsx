@@ -4,6 +4,8 @@ import Card from "../../components/Card/Card";
 import styles from "./OvernightBookingConfirmationPage.module.css";
 
 type ConfirmationState = {
+  reservationId?: string;
+  passId?: string;
   firstName?: string;
   lastName?: string;
   email?: string;
@@ -40,6 +42,8 @@ export default function OvernightBookingConfirmationPage() {
   const state = (location.state as ConfirmationState | null) ?? {};
 
   const data = {
+    reservationId: state.reservationId?.trim() || "",
+    passId: state.passId?.trim() || "",
     firstName: state.firstName?.trim() || "Guest",
     lastName: state.lastName?.trim() || "",
     email: state.email?.trim() || "guest@example.com",
@@ -70,13 +74,13 @@ export default function OvernightBookingConfirmationPage() {
         <h1 className={styles.title}>Booking Confirmation</h1>
 
         <p className={styles.subtitle}>
-          Your cabin booking has been submitted.
+          Your cabin booking has been confirmed.
           <br />
-          A receipt has been sent to <span className={styles.bold}>{data.email}</span>.
+          A confirmation receipt has been sent to <span className={styles.bold}>{data.email}</span>.
         </p>
 
         <div className={styles.ctaRow}>
-          <button className={styles.ghostBtn} type="button" onClick={() => navigate("/demo/overnight-booking")}>
+          <button className={styles.ghostBtn} type="button" onClick={() => navigate("/overnight-booking")}>
             Book Another Stay
           </button>
         </div>
@@ -85,6 +89,13 @@ export default function OvernightBookingConfirmationPage() {
           <div className={styles.cardTitle}>Booking Summary</div>
 
           <div className={styles.summaryGrid}>
+            {data.reservationId && (
+              <>
+                <div className={styles.label}>Reservation ID</div>
+                <div className={styles.value}>{data.reservationId}</div>
+              </>
+            )}
+
             <div className={styles.label}>Name</div>
             <div className={styles.value}>
               {data.firstName} {data.lastName}

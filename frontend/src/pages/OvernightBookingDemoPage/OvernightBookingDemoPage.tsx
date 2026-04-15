@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../../components/Card/Card";
-import { createGuestPass } from "../../api/reservations";
 import DaysRangePicker from "../../components/Form/DaysRangePicker";
 import styles from "./OvernightBookingDemoPage.module.css";
 
@@ -84,12 +83,6 @@ function addDays(date: Date, count: number): Date {
 function diffNights(checkIn: Date, checkOut: Date): number {
   const ms = startOfDay(checkOut).getTime() - startOfDay(checkIn).getTime();
   return Math.round(ms / (1000 * 60 * 60 * 24));
-}
-
-function toIsoWithTime(date: Date, hour: number, minute: number): string {
-  const value = new Date(date);
-  value.setHours(hour, minute, 0, 0);
-  return value.toISOString();
 }
 
 function createReservationId(): string {
@@ -238,7 +231,6 @@ export default function OvernightBookingDemoPage() {
     setIsSubmitting(true);
     setErrors({});
 
-    const reservationId = createReservationId();
     const nights = nightsFromRange(range);
     const subtotal = STANDARD_RATE * nights;
     const tax = +(subtotal * TX_TAX_RATE).toFixed(2);
@@ -246,18 +238,13 @@ export default function OvernightBookingDemoPage() {
     const checkIn = range.startDate;
     const checkOut = addDays(range.endDate!, 1);
 
-    // Do not block the user on API latency; complete booking creation in the background.
-    void createGuestPass({
-      name: "Demo Cabin Guest",
-      email: `demo+${reservationId.toLowerCase()}@example.com`,
-      phone: "555-555-1212",
-      reservation_id: reservationId,
-      check_in: toIsoWithTime(checkIn!, 15, 0),
-      check_out: toIsoWithTime(checkOut, 11, 0),
-    });
-
-    navigate("/demo/payment", {
+    // Navigate to payment page with booking details
+    // Reservation ID will be generated AFTER payment succeeds, not now
+    navigate("/payment", {
       state: {
+        guestName: "Cabin Guest",
+        guestEmail: "",
+        guestPhone: "",
         adults,
         children,
         pets,

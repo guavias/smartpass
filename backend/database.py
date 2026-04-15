@@ -216,6 +216,21 @@ async def get_guest_pass_by_reservation(email: str, reservation_id: str) -> Opti
 	return _normalize(doc)
 
 
+async def get_day_pass_by_reservation(email: str, reservation_id: str) -> Optional[dict[str, Any]]:
+	"""Find companion day pass for overnight reservation (for Crappie House access)."""
+	db = get_database()
+	doc = await db.passes.find_one(
+		{
+			"user_type": "visitor",
+			"email": email.lower(),
+			"reservation_id": reservation_id,
+			"status": {"$in": ["active", "expired"]},
+		},
+		sort=[("created_at", DESCENDING)],
+	)
+	return _normalize(doc)
+
+
 async def find_passes_by_email(email: str, limit: int = 10) -> list[dict[str, Any]]:
 	db = get_database()
 	cursor = db.passes.find({"email": email.lower()}).sort("created_at", DESCENDING).limit(limit)

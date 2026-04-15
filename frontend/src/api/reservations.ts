@@ -44,6 +44,10 @@ export type CreateGuestPassRequest = {
 	reservation_id: string;
 	check_in: string;
 	check_out: string;
+	payment_amount?: number;
+	payment_method?: string;
+	payment_source_id?: string;
+	idempotency_key?: string;
 };
 
 export type GuestPassResponse = {
@@ -58,6 +62,9 @@ export type GuestPassResponse = {
 	access_start: string;
 	access_end: string;
 	status: string;
+	payment_status?: string;
+	payment_reference?: string;
+	payment_amount?: number;
 };
 
 export type PortalResponse = {

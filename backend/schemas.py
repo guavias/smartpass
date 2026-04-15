@@ -52,16 +52,23 @@ class GuestBase(BaseModel):
 class GuestCreate(GuestBase):
     check_in: datetime
     check_out: datetime
+    payment_amount: Optional[float] = None
+    payment_method: str = "card"  # e.g., "card", "not_required"
+    payment_source_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 
 class GuestResponse(GuestBase):
     id: str
     portal_token: str
     portal_url: str
-    pass_type: Literal["guest"] = "guest"
+    pass_type: Literal["guest", "visitor"] = "guest"  # Can be guest (overnight) or visitor (day pass included with overnight)
     created_at: datetime
     access_start: datetime
     access_end: datetime
+    payment_status: str = "not_required"
+    payment_reference: Optional[str] = None
+    payment_amount: Optional[float] = None
     qr_refresh_seconds: int = 60
     access_granted: bool = False
     status: str

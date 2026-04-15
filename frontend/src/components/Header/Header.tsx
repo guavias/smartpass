@@ -39,7 +39,7 @@ const NAV: NavItem[] = [
       { label: "VIEW DAY PASS", href: "/find" },
     ],
   },
-  { key: "bookNow", label: "BOOK NOW", href: "/demo/overnight-booking" },
+  { key: "bookNow", label: "BOOK NOW", href: "/overnight-booking" },
 ];
 
 const CLICKABLE_TOP_LEVEL: NavKey[] = ["crappie", "bookNow"];
@@ -66,8 +66,8 @@ export default function Header({
     if (href === "/book-pass") {
       return location.pathname === "/book-pass" || location.pathname === "/booking-confirmation";
     }
-    if (href === "/demo/overnight-booking") {
-      return location.pathname === "/demo/overnight-booking";
+    if (href === "/overnight-booking") {
+      return location.pathname === "/overnight-booking" || location.pathname === "/payment" || location.pathname === "/overnight-confirmation";
     }
     return location.pathname === href || location.pathname.startsWith(`${href}/`);
   }

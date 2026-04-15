@@ -6,8 +6,9 @@ import pytz
 
 from fastapi import APIRouter, HTTPException
 
-from database import create_pass, get_guest_pass_by_reservation, get_pass_by_id, update_pass, utcnow
+from database import create_pass, get_guest_pass_by_reservation, get_day_pass_by_reservation, get_pass_by_id, update_pass, utcnow
 from email_service import EmailService
+from payment_service import PaymentService
 from rotating_qr import RotatingQRCodeService
 from schemas import GuestCreate, GuestLookupRequest, GuestResponse
 
@@ -27,6 +28,22 @@ def _to_utc(value: datetime) -> datetime:
 
 def _portal_base_url() -> str:
     return os.getenv("PORTAL_BASE_URL", os.getenv("BASE_URL", "http://localhost:8000"))
+
+
+def _normalize_checkout_to_end_of_day(checkout: datetime) -> datetime:
+    """
+    Normalize checkout time to 11:59:59 PM CST on that date.
+    Ensures continuous access throughout the checkout day.
+    Example: checkout 11:00 AM Apr 15 → 11:59:59 PM Apr 15 CST
+    """
+    # Convert to CST to work with local date/time
+    checkout_cst = checkout.astimezone(CST) if checkout.tzinfo else checkout.replace(tzinfo=pytz.UTC).astimezone(CST)
+    
+    # Set to 23:59:59 in CST
+    end_cst = checkout_cst.replace(hour=23, minute=59, second=59, microsecond=0)
+    
+    # Convert back to UTC for storage
+    return end_cst.astimezone(pytz.UTC)
 
 
 def _calculate_pass_status(doc: dict) -> str:
@@ -65,25 +82,54 @@ def _serialize_guest(doc: dict) -> GuestResponse:
         access_end=doc["access_end"],
         access_granted=status == "active",
         status=status,
-        pass_type="guest",
+        pass_type=doc.get("user_type", "guest"),  # Use actual type from document (guest or visitor)
     )
 
 
 @router.post("/", response_model=GuestResponse)
 async def create_guest_pass(guest: GuestCreate):
     """
-    Create a guest pass for a reservation and send QR code via email
+    Create a guest pass for a reservation with optional payment processing
     
     Flow:
-    1. Validate guest and reservation details
-    2. Generate QR code
-    3. Send email via Resend with QR code (valid for check-in period)
+    1. If payment_source_id provided: Process Square payment
+    2. Create guest pass record
+    3. Send confirmation email via Resend
     """
     try:
         check_in = _to_utc(guest.check_in)
-        check_out = _to_utc(guest.check_out)
-        if check_out <= check_in:
+        check_out_raw = _to_utc(guest.check_out)
+        if check_out_raw <= check_in:
             raise HTTPException(status_code=400, detail="check_out must be after check_in")
+
+        # Normalize checkout to 11:59:59 PM on checkout date for continuous access
+        check_out = _normalize_checkout_to_end_of_day(check_out_raw)
+
+        # Process payment if payment_source_id is provided
+        payment_status = "not_required"
+        payment_reference = None
+        
+        if guest.payment_source_id and guest.payment_amount:
+            try:
+                idempotency_key = guest.idempotency_key or f"guest-{guest.reservation_id}-{datetime.now().timestamp()}"
+                payment_result = await PaymentService.process_square_payment(
+                    amount_usd=guest.payment_amount,
+                    source_id=guest.payment_source_id,
+                    idempotency_key=idempotency_key,
+                )
+                
+                if payment_result.get("success"):
+                    payment_status = "completed"
+                    payment_reference = payment_result.get("transaction_id")
+                    logger.info(f"Payment processed for {guest.email}: {payment_reference}")
+                else:
+                    raise HTTPException(
+                        status_code=402,
+                        detail=f"Payment failed: {payment_result.get('status', 'Unknown error')}"
+                    )
+            except Exception as e:
+                logger.error(f"Payment processing error for {guest.email}: {str(e)}")
+                raise HTTPException(status_code=402, detail=f"Payment processing failed: {str(e)}")
 
         existing = await get_guest_pass_by_reservation(guest.email, guest.reservation_id)
         if existing and existing.get("status") != "revoked":
@@ -95,6 +141,9 @@ async def create_guest_pass(guest: GuestCreate):
                     "access_start": check_in,
                     "access_end": check_out,
                     "status": "active",
+                    "payment_status": payment_status,
+                    "payment_reference": payment_reference,
+                    "payment_amount": guest.payment_amount,
                 },
             )
             if updated:
@@ -119,10 +168,43 @@ async def create_guest_pass(guest: GuestCreate):
             "created_at": created_at,
             "access_start": check_in,
             "access_end": check_out,
-            "payment_status": "not_required",
+            "payment_status": payment_status,
+            "payment_reference": payment_reference,
+            "payment_amount": guest.payment_amount,
             "qr_refresh_seconds": 60,
         }
         created = await create_pass(pass_doc)
+
+        # Create companion day pass for Crappie House access (automatically included with overnight stay)
+        day_pass_id = str(uuid.uuid4())
+        day_portal_token = str(uuid.uuid4())
+        day_token_seed = qr_service.generate_seed()
+
+        day_pass_doc = {
+            "id": day_pass_id,
+            "user_id": guest_id,  # Link to overnight guest
+            "user_type": "visitor",  # Day pass is treated as visitor pass
+            "name": guest.name,
+            "email": guest.email.lower(),
+            "phone": guest.phone,
+            "reservation_id": guest.reservation_id,  # Link by reservation ID for lookup
+            "vehicle_info": None,
+            "portal_token": day_portal_token,
+            "token_seed": day_token_seed,
+            "status": "active",
+            "created_at": created_at,
+            "access_start": check_in,  # 12:00 AM of arrival
+            "access_end": check_out,   # 11:59 PM of departure
+            "payment_status": "included",  # Included with overnight booking
+            "payment_reference": payment_reference,  # Same reference as overnight booking
+            "payment_amount": 0,  # Free - included with overnight
+            "num_days": 1,  # Day pass
+            "num_adults": 1,  # Default for overnight guest day pass
+            "num_children": 0,
+            "qr_refresh_seconds": 60,
+        }
+        await create_pass(day_pass_doc)
+        logger.info(f"Companion day pass created for overnight guest {guest.email} (Pass ID: {day_pass_id})")
 
         portal_url = f"{_portal_base_url()}/reservation/{guest_id}"
         email_result = EmailService.send_portal_access_email(
@@ -159,11 +241,23 @@ async def get_guest_pass(guest_id: str):
 
 @router.post("/find", response_model=GuestResponse)
 async def find_guest_portal(payload: GuestLookupRequest):
-    """Find an existing guest portal by reservation + email."""
-    doc = await get_guest_pass_by_reservation(payload.email, payload.reservation_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="No reservation portal found")
-    return _serialize_guest(doc)
+    """
+    Find guest portal by reservation + email.
+    
+    Prioritizes companion day pass (visitor type) for Crappie House access.
+    Falls back to overnight guest pass if no day pass found.
+    """
+    # Try to find companion day pass first (for Crappie House access)
+    day_pass = await get_day_pass_by_reservation(payload.email, payload.reservation_id)
+    if day_pass:
+        return _serialize_guest(day_pass)
+    
+    # Fall back to overnight guest pass if no day pass found
+    guest_pass = await get_guest_pass_by_reservation(payload.email, payload.reservation_id)
+    if guest_pass:
+        return _serialize_guest(guest_pass)
+    
+    raise HTTPException(status_code=404, detail="No reservation portal found")
 
 
 @router.put("/{guest_id}")
