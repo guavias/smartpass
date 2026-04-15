@@ -2,6 +2,7 @@ import os
 import logging
 from typing import Optional
 from datetime import datetime
+import pytz
 import resend
 from schemas import QRCodeEmailNotification, AccessGrantedEmail, AccessDeniedEmail, ExpirationWarningEmail
 from qr_generator import QRCodeGenerator
@@ -9,9 +10,20 @@ from qr_generator import QRCodeGenerator
 
 logger = logging.getLogger(__name__)
 
+# Central timezone for email display
+CST = pytz.timezone('America/Chicago')
+
 # Get base URL from environment at runtime (after .env is loaded)
 def _get_base_url() -> str:
     return os.getenv("BASE_URL", "http://localhost:8000")
+
+
+def _to_cst(dt: datetime) -> datetime:
+    """Convert UTC datetime to CST/CDT"""
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=pytz.UTC)
+    return dt.astimezone(CST)
+
 
 # Lazy-load Resend API key on first use
 _resend_initialized = False
@@ -49,8 +61,11 @@ class EmailService:
 
         try:
             window_label = "Day Pass" if user_type == "visitor" else "Reservation Access"
-            start_formatted = access_start.strftime("%I:%M %p on %B %d, %Y")
-            end_formatted = access_end.strftime("%I:%M %p on %B %d, %Y")
+            # Convert times to CST for display
+            start_cst = _to_cst(access_start)
+            end_cst = _to_cst(access_end)
+            start_formatted = start_cst.strftime("%I:%M %p on %B %d, %Y")
+            end_formatted = end_cst.strftime("%I:%M %p on %B %d, %Y")
 
             html_body = f"""
             <html>
@@ -127,7 +142,9 @@ class EmailService:
             subject = "Your Smart Pass QR Code - Access Your Visit"
             
             # Build HTML email with embedded QR code image
-            expires_formatted = access_expires_at.strftime("%I:%M %p on %B %d, %Y")
+            # Convert to CST for display
+            expires_cst = _to_cst(access_expires_at)
+            expires_formatted = expires_cst.strftime("%I:%M %p on %B %d, %Y")
             user_type_friendly = "Visit" if user_type == "visitor" else "Reservation"
             
             html_body = f"""
@@ -196,7 +213,8 @@ class EmailService:
             return {"success": False, "error": "Email service not configured"}
 
         try:
-            timestamp_formatted = access_timestamp.strftime("%I:%M %p on %B %d, %Y")
+            timestamp_cst = _to_cst(access_timestamp)
+            timestamp_formatted = timestamp_cst.strftime("%I:%M %p on %B %d, %Y")
             
             html_body = f"""
             <html>
@@ -284,7 +302,8 @@ class EmailService:
             return {"success": False, "error": "Email service not configured"}
 
         try:
-            expires_formatted = access_expires_at.strftime("%I:%M %p on %B %d, %Y")
+            expires_cst = _to_cst(access_expires_at)
+            expires_formatted = expires_cst.strftime("%I:%M %p on %B %d, %Y")
             
             html_body = f"""
             <html>

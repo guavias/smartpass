@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException
 import logging
+import pytz
 
 from schemas import VisitorCreate, VisitorResponse
 from database import create_pass, get_pass_by_id, update_pass, utcnow
@@ -15,6 +16,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 qr_service = RotatingQRCodeService()
 
+# Central timezone for time display
+CST = pytz.timezone('America/Chicago')
+
 
 def _to_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
@@ -22,11 +26,53 @@ def _to_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _calculate_day_pass_end_time(start: datetime, num_days: int) -> datetime:
+    """
+    Calculate end time for day passes in CST timezone.
+    For N days, end at 11:59:59 PM CST of the Nth day (inclusive).
+    Example: 1-day pass starting Apr 14 3:04 PM CDT ends Apr 14 11:59:59 PM CDT
+    Example: 2-day pass starting Apr 14 3:04 PM CDT ends Apr 15 11:59:59 PM CDT
+    """
+    # Convert start to CST to work with local dates
+    start_cst = start.astimezone(CST) if start.tzinfo else start.replace(tzinfo=pytz.UTC).astimezone(CST)
+    
+    # Add (num_days - 1) full days to get to the last day
+    end_date_cst = start_cst + timedelta(days=num_days - 1)
+    
+    # Set to 23:59:59 in CST
+    end_cst = end_date_cst.replace(hour=23, minute=59, second=59, microsecond=0)
+    
+    # Convert back to UTC for storage
+    return end_cst.astimezone(pytz.UTC)
+
+
 def _portal_base_url() -> str:
     return os.getenv("PORTAL_BASE_URL", os.getenv("BASE_URL", "http://localhost:8000"))
 
 
+def _calculate_pass_status(doc: dict) -> str:
+    """Calculate the current status of a pass based on access windows and stored status"""
+    now = utcnow()
+    # If revoked, always revoked
+    if doc.get("status") == "revoked":
+        return "revoked"
+    # Check if not yet active
+    access_start = doc.get("access_start")
+    if access_start and access_start.tzinfo is None:
+        access_start = access_start.replace(tzinfo=timezone.utc)
+    if access_start and now < access_start:
+        return "inactive"
+    # Check if expired
+    access_end = doc.get("access_end")
+    if access_end and access_end.tzinfo is None:
+        access_end = access_end.replace(tzinfo=timezone.utc)
+    if access_end and now > access_end:
+        return "expired"
+    return "active"
+
+
 def _serialize_visitor(doc: dict) -> VisitorResponse:
+    status = _calculate_pass_status(doc)
     return VisitorResponse(
         id=doc["id"],
         name=doc["name"],
@@ -34,13 +80,19 @@ def _serialize_visitor(doc: dict) -> VisitorResponse:
         phone=doc.get("phone"),
         vehicle_info=doc.get("vehicle_info"),
         portal_token=doc["portal_token"],
-        portal_url=f"{_portal_base_url()}/api/v1/access/portal/{doc['portal_token']}",
+        portal_url=f"{_portal_base_url()}/reservation/{doc['id']}",
         created_at=doc["created_at"],
         access_start=doc["access_start"],
         access_end=doc["access_end"],
         payment_status=doc.get("payment_status", "unknown"),
         payment_reference=doc.get("payment_reference"),
-        access_granted=doc.get("status") == "active",
+        payment_amount=doc.get("payment_amount", 0),
+        num_days=doc.get("num_days", 1),
+        num_adults=doc.get("num_adults", 1),
+        num_children=doc.get("num_children", 0),
+        access_granted=status == "active",
+        status=status,
+        pass_type="visitor",
     )
 
 
@@ -62,7 +114,7 @@ async def create_visitor_pass(visitor: VisitorCreate):
 
         created_at = utcnow()
         access_start = _to_utc(visitor.access_start) if visitor.access_start else created_at
-        access_end = access_start + timedelta(days=visitor.num_days)
+        access_end = _calculate_day_pass_end_time(access_start, visitor.num_days)
 
         payment_status = "not_required"
         payment_reference = None
@@ -96,11 +148,13 @@ async def create_visitor_pass(visitor: VisitorCreate):
             "payment_method": visitor.payment_method,
             "payment_amount": visitor.payment_amount,
             "num_days": visitor.num_days,
+            "num_adults": visitor.num_adults,
+            "num_children": visitor.num_children,
             "qr_refresh_seconds": 60,
         }
         created = await create_pass(pass_doc)
 
-        portal_url = f"{_portal_base_url()}/api/v1/access/portal/{portal_token}"
+        portal_url = f"{_portal_base_url()}/reservation/{visitor_id}"
         email_result = EmailService.send_portal_access_email(
             recipient_email=visitor.email,
             recipient_name=visitor.name,

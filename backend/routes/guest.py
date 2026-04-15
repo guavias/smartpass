@@ -2,6 +2,7 @@ import os
 import uuid
 import logging
 from datetime import datetime, timezone
+import pytz
 
 from fastapi import APIRouter, HTTPException
 
@@ -14,6 +15,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 qr_service = RotatingQRCodeService()
 
+# Central timezone for time display
+CST = pytz.timezone('America/Chicago')
+
 
 def _to_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
@@ -25,7 +29,29 @@ def _portal_base_url() -> str:
     return os.getenv("PORTAL_BASE_URL", os.getenv("BASE_URL", "http://localhost:8000"))
 
 
+def _calculate_pass_status(doc: dict) -> str:
+    """Calculate the current status of a pass based on access windows and stored status"""
+    now = utcnow()
+    # If revoked, always revoked
+    if doc.get("status") == "revoked":
+        return "revoked"
+    # Check if not yet active
+    access_start = doc.get("access_start")
+    if access_start and access_start.tzinfo is None:
+        access_start = access_start.replace(tzinfo=timezone.utc)
+    if access_start and now < access_start:
+        return "inactive"
+    # Check if expired
+    access_end = doc.get("access_end")
+    if access_end and access_end.tzinfo is None:
+        access_end = access_end.replace(tzinfo=timezone.utc)
+    if access_end and now > access_end:
+        return "expired"
+    return "active"
+
+
 def _serialize_guest(doc: dict) -> GuestResponse:
+    status = _calculate_pass_status(doc)
     return GuestResponse(
         id=doc["id"],
         name=doc["name"],
@@ -33,11 +59,13 @@ def _serialize_guest(doc: dict) -> GuestResponse:
         phone=doc.get("phone"),
         reservation_id=doc["reservation_id"],
         portal_token=doc["portal_token"],
-        portal_url=f"{_portal_base_url()}/api/v1/access/portal/{doc['portal_token']}",
+        portal_url=f"{_portal_base_url()}/reservation/{doc['id']}",
         created_at=doc["created_at"],
         access_start=doc["access_start"],
         access_end=doc["access_end"],
-        access_granted=doc.get("status") == "active",
+        access_granted=status == "active",
+        status=status,
+        pass_type="guest",
     )
 
 
@@ -96,7 +124,7 @@ async def create_guest_pass(guest: GuestCreate):
         }
         created = await create_pass(pass_doc)
 
-        portal_url = f"{_portal_base_url()}/api/v1/access/portal/{portal_token}"
+        portal_url = f"{_portal_base_url()}/reservation/{guest_id}"
         email_result = EmailService.send_portal_access_email(
             recipient_email=guest.email,
             recipient_name=guest.name,

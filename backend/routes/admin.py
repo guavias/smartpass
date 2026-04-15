@@ -7,10 +7,12 @@ import logging
 
 from database import (
     find_passes_by_email,
+    get_admin_by_email,
     get_pass_by_id,
     query_admin_access_logs,
     query_admin_passes,
     update_pass,
+    verify_admin_credentials,
 )
 from schemas import (
     AccessOverride,
@@ -68,13 +70,30 @@ def _to_admin_access_log_item(doc: dict) -> AdminAccessLogItem:
 
 @router.post("/login", response_model=AdminLoginResponse)
 async def admin_login(payload: AdminLoginRequest):
-    """Basic admin login endpoint for dashboard integration."""
+    """Admin login backed by MongoDB with environment fallback."""
+    token_ttl = int(os.getenv("ADMIN_TOKEN_EXPIRES_IN", "3600"))
+
+    admin_doc = await verify_admin_credentials(payload.email, payload.password)
+    if admin_doc:
+        return AdminLoginResponse(
+            access_token=secrets.token_urlsafe(32),
+            token_type="bearer",
+            expires_in=token_ttl,
+            admin_id=str(admin_doc.get("id", "admin-local-1")),
+            role=str(admin_doc.get("role", "admin")),
+            name=str(admin_doc.get("name", "SmartPass Admin")),
+        )
+
+    # Backwards-compatible env login while teams migrate to Mongo-backed admin users.
     admin_email = os.getenv("ADMIN_EMAIL", "admin@smartpass.dev").strip().lower()
     admin_password = os.getenv("ADMIN_PASSWORD", "admin123")
     admin_name = os.getenv("ADMIN_NAME", "SmartPass Admin")
     admin_role = os.getenv("ADMIN_ROLE", "admin")
     admin_id = os.getenv("ADMIN_ID", "admin-local-1")
-    token_ttl = int(os.getenv("ADMIN_TOKEN_EXPIRES_IN", "3600"))
+
+    existing_admin = await get_admin_by_email(payload.email)
+    if existing_admin:
+        raise HTTPException(status_code=401, detail="Invalid admin credentials")
 
     if payload.email.strip().lower() != admin_email or payload.password != admin_password:
         raise HTTPException(status_code=401, detail="Invalid admin credentials")

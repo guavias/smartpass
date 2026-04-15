@@ -3,7 +3,7 @@ import { useLocation, useParams } from "react-router-dom";
 import Card from "../../components/Card/Card";
 import personIcon from "../../assets/person.png";
 import { ApiError } from "../../api/client";
-import { getGuestPass, getPortal, getPortalQr } from "../../api/reservations";
+import { getGuestPass, getVisitorPass, getPortal, getPortalQr, VisitorPassResponse, GuestPassResponse } from "../../api/reservations";
 import styles from "./ReservationDetailPage.module.css";
 
 type LookupState = {
@@ -17,13 +17,33 @@ function money(n: number) {
   return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
 }
 
-function formatDateMain(iso: string) {
-  const d = new Date(iso + "T00:00:00");
+/**
+ * Parse an ISO datetime string and ensure it's treated as UTC.
+ * The backend always sends UTC times, so we need to ensure they're handled correctly.
+ */
+function parseUTCDateTime(isoDateTime: string): Date {
+  if (!isoDateTime) {
+    return new Date(); // Fallback to current time if invalid
+  }
+  
+  // Ensure the string has timezone indicator
+  let cleanDateTime = isoDateTime.trim();
+  
+  // If no timezone indicator is present, assume UTC
+  if (!cleanDateTime.includes('Z') && !cleanDateTime.includes('+') && !cleanDateTime.includes('-', 10)) {
+    cleanDateTime += 'Z';
+  }
+  
+  return new Date(cleanDateTime);
+}
+
+function formatDateMain(isoDateTime: string) {
+  const d = parseUTCDateTime(isoDateTime);
   return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
-function formatTimeLabel(iso: string, endOfDay = false) {
-  const d = new Date(iso + (endOfDay ? "T23:59:00" : "T00:01:00"));
+function formatTimeLabel(isoDateTime: string) {
+  const d = parseUTCDateTime(isoDateTime);
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
@@ -39,28 +59,31 @@ export default function ReservationDetailPage() {
   const [qrRefreshedAt, setQrRefreshedAt] = useState<string>("");
   const [qrFlash, setQrFlash] = useState(false);
 
-  const [reservationId, setReservationId] = useState(state.reservationId ?? "");
   const [guestName, setGuestName] = useState("Loading...");
   const [portalToken, setPortalToken] = useState(state.portalToken ?? "");
+  const [passType, setPassType] = useState<"visitor" | "guest" | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState(0);
+  const [numDays, setNumDays] = useState(1);
+  const [numAdults, setNumAdults] = useState(0);
+  const [numChildren, setNumChildren] = useState(0);
   const passId = state.passId ?? params.id ?? "";
 
-  const adults: number = 2;
-  const children: number = 1;
-  const adultRate = 15;
-  const childRate = 10;
-  const days: number = 2;
-  const [startDateISO, setStartDateISO] = useState("2026-02-15");
-  const [endDateISO, setEndDateISO] = useState("2026-02-16");
+  const [startDateTime, setStartDateTime] = useState("");
+  const [endDateTime, setEndDateTime] = useState("");
 
+  // For visitor passes: use actual guest counts from API
+  // For guest passes: don't show breakdown (we don't have pricing info)
+  const adults: number = passType === "visitor" ? numAdults : 0;
+  const children: number = passType === "visitor" ? numChildren : 0;
+  const days: number = numDays;
+  
   const pricing = {
-    adultLine: adults * adultRate * days,
-    childLine: children * childRate * days,
-    subtotal: adults * adultRate * days + children * childRate * days,
+    adultLine: passType === "visitor" ? paymentAmount : 0,
+    childLine: 0,
+    subtotal: passType === "visitor" ? paymentAmount : 0,
     tax: 0,
-    total: 0,
+    total: paymentAmount,
   };
-  pricing.tax = Number((pricing.subtotal * 0.0825).toFixed(2));
-  pricing.total = Number((pricing.subtotal + pricing.tax).toFixed(2));
 
   const qrImageUrl = useMemo(() => {
     if (!portalToken) return "";
@@ -74,13 +97,35 @@ export default function ReservationDetailPage() {
       if (!passId && !portalToken) return;
       try {
         if (!portalToken && passId) {
-          const guest = await getGuestPass(passId);
-          if (!isActive) return;
-          setPortalToken(guest.portal_token);
-          setReservationId(guest.reservation_id);
-          setGuestName(guest.name);
-          setStartDateISO(new Date(guest.access_start).toISOString().slice(0, 10));
-          setEndDateISO(new Date(guest.access_end).toISOString().slice(0, 10));
+          // Try to load as guest pass first, then fall back to visitor pass
+          let pass: GuestPassResponse | VisitorPassResponse | null = null;
+          try {
+            pass = await getGuestPass(passId);
+          } catch {
+            // If guest fails, try visitor
+            try {
+              pass = await getVisitorPass(passId);
+            } catch {
+              throw new Error("Unable to load pass details");
+            }
+          }
+          
+        if (!isActive) return;
+          setPortalToken(pass.portal_token);
+          setGuestName(pass.name);
+          setStartDateTime(pass.access_start);
+          setEndDateTime(pass.access_end);
+          
+          // Extract pass-specific data
+          const type = pass.pass_type as "visitor" | "guest";
+          setPassType(type);
+          
+          if (type === "visitor" && "payment_amount" in pass && "num_days" in pass) {
+            setPaymentAmount(pass.payment_amount);
+            setNumDays(pass.num_days);
+            setNumAdults(pass.num_adults ?? 1);
+            setNumChildren(pass.num_children ?? 0);
+          }
         }
       } catch (err) {
         if (!isActive) return;
@@ -107,8 +152,8 @@ export default function ReservationDetailPage() {
         const portal = await getPortal(portalToken);
         if (!isActive) return;
         setGuestName(portal.holder_name);
-        setStartDateISO(new Date(portal.access_start).toISOString().slice(0, 10));
-        setEndDateISO(new Date(portal.access_end).toISOString().slice(0, 10));
+        setStartDateTime(portal.access_start);
+        setEndDateTime(portal.access_end);
       } catch {
         if (!isActive) return;
       }
@@ -199,8 +244,7 @@ export default function ReservationDetailPage() {
         {error ? <p className={styles.subtitle}>{error}</p> : null}
 
         <Card className={styles.card}>
-          <p className={styles.resIdLabel}>Pass #</p>
-          <p className={styles.resIdValue}>{reservationId}</p>
+          <p className={styles.resIdLabel}>Pass # {passId}</p>
 
           <div className={styles.guestRow}>
             <img src={personIcon} alt="" aria-hidden="true" className={styles.guestIcon} />
@@ -215,8 +259,8 @@ export default function ReservationDetailPage() {
 
           <div className={styles.dateRow}>
             <div className={styles.dateCell}>
-              <p className={styles.dateMain}>{formatDateMain(startDateISO)}</p>
-              <p className={styles.dateSub}>{formatTimeLabel(startDateISO)}</p>
+              <p className={styles.dateMain}>{formatDateMain(startDateTime)}</p>
+              <p className={styles.dateSub}>{formatTimeLabel(startDateTime)}</p>
             </div>
 
             <div className={styles.arrow} aria-hidden="true">
@@ -224,8 +268,8 @@ export default function ReservationDetailPage() {
             </div>
 
             <div className={styles.dateCell}>
-              <p className={styles.dateMain}>{formatDateMain(endDateISO)}</p>
-              <p className={styles.dateSub}>{formatTimeLabel(endDateISO, true)}</p>
+              <p className={styles.dateMain}>{formatDateMain(endDateTime)}</p>
+              <p className={styles.dateSub}>{formatTimeLabel(endDateTime)}</p>
             </div>
           </div>
 
@@ -234,36 +278,34 @@ export default function ReservationDetailPage() {
           </button>
           <p className={styles.qrNote}>QR code refreshes every minute.</p>
 
-          <div className={styles.breakdown}>
-            <div className={styles.breakdownSummary}>Price Breakdown</div>
-            <div className={styles.breakdownBox}>
-              {adults > 0 && (
-                <div className={styles.breakdownRow}>
-                  <span>
-                    {adults} Adult Day Pass × {days} {days === 1 ? "day" : "days"}
-                  </span>
-                  <span>{money(pricing.adultLine)}</span>
+          {passType === "visitor" && (
+            <div className={styles.breakdown}>
+              <div className={styles.breakdownSummary}>Price Breakdown</div>
+              <div className={styles.breakdownBox}>
+                {adults > 0 && (
+                  <div className={styles.breakdownRow}>
+                    <span>
+                      {adults} Adult Day Pass × {days} {days === 1 ? "day" : "days"}
+                    </span>
+                    <span>{money(pricing.adultLine)}</span>
+                  </div>
+                )}
+                {children > 0 && (
+                  <div className={styles.breakdownRow}>
+                    <span>
+                      {children} Child Day Pass × {days} {days === 1 ? "day" : "days"}
+                    </span>
+                    <span>{money(pricing.childLine)}</span>
+                  </div>
+                )}
+                <div className={styles.divider} />
+                <div className={styles.breakdownTotal}>
+                  <span>Total</span>
+                  <span>{money(pricing.total)}</span>
                 </div>
-              )}
-              {children > 0 && (
-                <div className={styles.breakdownRow}>
-                  <span>
-                    {children} Child Day Pass × {days} {days === 1 ? "day" : "days"}
-                  </span>
-                  <span>{money(pricing.childLine)}</span>
-                </div>
-              )}
-              <div className={styles.breakdownRow}>
-                <span>Tax (TX 8.25%)</span>
-                <span>{money(pricing.tax)}</span>
-              </div>
-              <div className={styles.divider} />
-              <div className={styles.breakdownTotal}>
-                <span>Total</span>
-                <span>{money(pricing.total)}</span>
               </div>
             </div>
-          </div>
+          )}
         </Card>
       </div>
 

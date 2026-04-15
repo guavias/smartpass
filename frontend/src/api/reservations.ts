@@ -6,6 +6,8 @@ export type CreateVisitorPassRequest = {
 	phone: string;
 	vehicle_info: string;
 	num_days: number;
+	num_adults: number;
+	num_children: number;
 	payment_amount: number;
 	payment_method: string;
 	payment_source_id: string;
@@ -16,12 +18,18 @@ export type VisitorPassResponse = {
 	id: string;
 	portal_token: string;
 	portal_url: string;
+	pass_type: "visitor";
 	name: string;
 	email: string;
 	phone?: string;
 	access_start: string;
 	access_end: string;
 	payment_status: string;
+	payment_amount: number;
+	num_days: number;
+	num_adults: number;
+	num_children: number;
+	status: string;
 };
 
 export type GuestLookupRequest = {
@@ -43,11 +51,13 @@ export type GuestPassResponse = {
 	reservation_id: string;
 	portal_token: string;
 	portal_url: string;
+	pass_type: "guest";
 	name: string;
 	email: string;
 	phone?: string;
 	access_start: string;
 	access_end: string;
+	status: string;
 };
 
 export type PortalResponse = {

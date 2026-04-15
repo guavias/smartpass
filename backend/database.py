@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
+from passlib.context import CryptContext
 from pymongo import ASCENDING, DESCENDING
 
 
@@ -11,6 +12,7 @@ MONGODB_DB_NAME = os.getenv("MONGODB_DB_NAME", "smartpass")
 
 client: Optional[AsyncIOMotorClient] = None
 database: Optional[AsyncIOMotorDatabase] = None
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def utcnow() -> datetime:
@@ -23,6 +25,16 @@ def _normalize(doc: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
 	data = dict(doc)
 	if "_id" in data:
 		data["_id"] = str(data["_id"])
+	
+	# Ensure all datetime fields have UTC timezone info
+	for key, value in data.items():
+		if isinstance(value, datetime):
+			if value.tzinfo is None:
+				data[key] = value.replace(tzinfo=timezone.utc)
+			else:
+				# Convert to UTC if it's not already
+				data[key] = value.astimezone(timezone.utc)
+	
 	return data
 
 
@@ -35,6 +47,7 @@ async def connect_to_mongo() -> None:
 	database = client[MONGODB_DB_NAME]
 
 	await _ensure_indexes()
+	await _ensure_seed_admin_user()
 
 
 async def close_mongo_connection() -> None:
@@ -63,13 +76,110 @@ async def _ensure_indexes() -> None:
 	await db.access_logs.create_index([("timestamp", DESCENDING)])
 	await db.access_logs.create_index([("pass_id", ASCENDING), ("timestamp", DESCENDING)])
 
+	await db.admin_users.create_index([("email", ASCENDING)], unique=True)
+	await db.admin_users.create_index([("id", ASCENDING)], unique=True)
+
+
+def hash_password(password: str) -> str:
+	return pwd_context.hash(password)
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+	if not password_hash:
+		return False
+	try:
+		return pwd_context.verify(password, password_hash)
+	except Exception:
+		return False
+
+
+async def upsert_admin_user(
+	email: str,
+	password: str,
+	name: str,
+	role: str = "admin",
+	admin_id: Optional[str] = None,
+) -> dict[str, Any]:
+	db = get_database()
+	normalized_email = email.strip().lower()
+	normalized_role = role.strip().lower() if role else "admin"
+	resolved_admin_id = admin_id.strip() if admin_id else f"admin-{normalized_email}"
+	now = utcnow()
+
+	update_doc = {
+		"email": normalized_email,
+		"name": name.strip() if name else "SmartPass Admin",
+		"role": normalized_role,
+		"password_hash": hash_password(password),
+		"id": resolved_admin_id,
+		"updated_at": now,
+		"is_active": True,
+	}
+
+	await db.admin_users.update_one(
+		{"email": normalized_email},
+		{
+			"$set": update_doc,
+			"$setOnInsert": {"created_at": now},
+		},
+		upsert=True,
+	)
+
+	admin_doc = await db.admin_users.find_one({"email": normalized_email})
+	if not admin_doc:
+		raise RuntimeError("Failed to upsert admin user")
+	return _normalize(admin_doc) or {}
+
+
+async def get_admin_by_email(email: str) -> Optional[dict[str, Any]]:
+	db = get_database()
+	doc = await db.admin_users.find_one({"email": email.strip().lower()})
+	return _normalize(doc)
+
+
+async def verify_admin_credentials(email: str, password: str) -> Optional[dict[str, Any]]:
+	admin_doc = await get_admin_by_email(email)
+	if not admin_doc:
+		return None
+
+	if not admin_doc.get("is_active", True):
+		return None
+
+	if not verify_password(password, str(admin_doc.get("password_hash", ""))):
+		return None
+
+	return admin_doc
+
+
+async def _ensure_seed_admin_user() -> None:
+	seed_on_startup = os.getenv("ADMIN_SEED_ON_STARTUP", "true").strip().lower() == "true"
+	if not seed_on_startup:
+		return
+
+	admin_email = os.getenv("ADMIN_EMAIL")
+	admin_password = os.getenv("ADMIN_PASSWORD")
+	if not admin_email or not admin_password:
+		return
+
+	admin_name = os.getenv("ADMIN_NAME", "SmartPass Admin")
+	admin_role = os.getenv("ADMIN_ROLE", "admin")
+	admin_id = os.getenv("ADMIN_ID")
+
+	await upsert_admin_user(
+		email=admin_email,
+		password=admin_password,
+		name=admin_name,
+		role=admin_role,
+		admin_id=admin_id,
+	)
+
 
 async def create_pass(pass_data: dict[str, Any]) -> dict[str, Any]:
 	db = get_database()
 	payload = dict(pass_data)
 	payload.setdefault("created_at", utcnow())
 	await db.passes.insert_one(payload)
-	return payload
+	return _normalize(payload)
 
 
 async def update_pass(pass_id: str, updates: dict[str, Any]) -> Optional[dict[str, Any]]:
@@ -117,7 +227,7 @@ async def log_access_event(event: dict[str, Any]) -> dict[str, Any]:
 	payload = dict(event)
 	payload.setdefault("timestamp", utcnow())
 	await db.access_logs.insert_one(payload)
-	return payload
+	return _normalize(payload)
 
 
 async def get_access_logs(limit: int = 100, offset: int = 0) -> list[dict[str, Any]]:

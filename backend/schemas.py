@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 
 # ============ Visitor & Guest Models ============
@@ -16,6 +16,8 @@ class VisitorCreate(VisitorBase):
     payment_amount: float
     payment_method: str = "card"  # e.g., "card", "cash"
     num_days: int = Field(default=1, ge=1, le=30)
+    num_adults: int = Field(default=1, ge=1, le=10)
+    num_children: int = Field(default=0, ge=0, le=10)
     access_start: Optional[datetime] = None
     payment_source_id: Optional[str] = None
     idempotency_key: Optional[str] = None
@@ -31,8 +33,13 @@ class VisitorResponse(VisitorBase):
     access_end: datetime
     payment_status: str
     payment_reference: Optional[str] = None
+    payment_amount: float
+    num_days: int
+    num_adults: int
+    num_children: int
     qr_refresh_seconds: int = 60
     access_granted: bool = False
+    status: str
 
 
 class GuestBase(BaseModel):
@@ -57,6 +64,7 @@ class GuestResponse(GuestBase):
     access_end: datetime
     qr_refresh_seconds: int = 60
     access_granted: bool = False
+    status: str
 
 
 class GuestLookupRequest(BaseModel):
@@ -92,6 +100,8 @@ class Pass(BaseModel):
 
 
 class PortalAccessResponse(BaseModel):
+    model_config = ConfigDict(ser_json_timedelta="float")
+    
     pass_id: str
     portal_token: str
     user_type: Literal["visitor", "guest"]

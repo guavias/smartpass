@@ -37,9 +37,6 @@ export default function ReservationFindPage() {
         const result = await findGuestPortal({ email: trimmedEmail, reservation_id: trimmedReservationId });
         navigate(`/reservation/${encodeURIComponent(result.id)}`, {
           state: {
-            email: trimmedEmail,
-            reservationId: result.reservation_id,
-            portalToken: result.portal_token,
             passId: result.id,
           },
         });
@@ -58,9 +55,6 @@ export default function ReservationFindPage() {
 
       navigate(`/reservation/${encodeURIComponent(visitor.id)}`, {
         state: {
-          email: trimmedEmail,
-          reservationId: trimmedReservationId,
-          portalToken: visitor.portal_token,
           passId: visitor.id,
         },
       });
