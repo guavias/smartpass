@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Card from "../../components/Card/Card";
-import { ApiError } from "../../api/client";
 import { createGuestPass } from "../../api/reservations";
 import DaysRangePicker from "../../components/Form/DaysRangePicker";
 import styles from "./OvernightBookingDemoPage.module.css";
@@ -13,6 +12,7 @@ type DateRangeState = {
 };
 
 const STANDARD_RATE = 145;
+const TX_TAX_RATE = 0.0825;
 
 const galleryModules = import.meta.glob("../../assets/cabin-gallery/*.jpg", {
   eager: true,
@@ -235,31 +235,42 @@ export default function OvernightBookingDemoPage() {
       return;
     }
 
-    try {
-      setIsSubmitting(true);
-      setErrors({});
-      const reservationId = createReservationId();
+    setIsSubmitting(true);
+    setErrors({});
 
-      await createGuestPass({
-        name: "Demo Cabin Guest",
-        email: `demo+${reservationId.toLowerCase()}@example.com`,
-        phone: "555-555-1212",
-        reservation_id: reservationId,
-        check_in: toIsoWithTime(range.startDate!, 15, 0),
-        check_out: toIsoWithTime(addDays(range.endDate!, 1), 11, 0),
-      });
+    const reservationId = createReservationId();
+    const nights = nightsFromRange(range);
+    const subtotal = STANDARD_RATE * nights;
+    const tax = +(subtotal * TX_TAX_RATE).toFixed(2);
+    const total = +(subtotal + tax).toFixed(2);
+    const checkIn = range.startDate;
+    const checkOut = addDays(range.endDate!, 1);
 
-      // Booking created successfully, navigate to payment page
-      navigate("/demo/payment");
-    } catch (error) {
-      if (error instanceof ApiError) {
-        setErrors({ submit: error.message });
-      } else {
-        setErrors({ submit: "Unable to create a demo booking right now." });
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+    // Do not block the user on API latency; complete booking creation in the background.
+    void createGuestPass({
+      name: "Demo Cabin Guest",
+      email: `demo+${reservationId.toLowerCase()}@example.com`,
+      phone: "555-555-1212",
+      reservation_id: reservationId,
+      check_in: toIsoWithTime(checkIn!, 15, 0),
+      check_out: toIsoWithTime(checkOut, 11, 0),
+    });
+
+    navigate("/demo/payment", {
+      state: {
+        adults,
+        children,
+        pets,
+        checkIn: checkIn?.toISOString(),
+        checkOut: checkOut.toISOString(),
+        nights,
+        stayType: "Cabin Studio",
+        nightlyRate: STANDARD_RATE,
+        subtotal,
+        tax,
+        total,
+      },
+    });
   }
 
   const nights = nightsFromRange(range);
@@ -492,10 +503,10 @@ export default function OvernightBookingDemoPage() {
                 alt={`Cabin studio full image ${activeImage + 1}`}
                 className={styles.lightboxImage}
               />
-              <button type="button" className={`${styles.navBtn} ${styles.navPrev}`} onClick={() => moveImage(-1)} style={{ position: 'absolute', left: '10px', bottom: 'auto', top: '50%' }}>
+              <button type="button" className={`${styles.navBtn} ${styles.lightboxNavBtn} ${styles.lightboxNavPrev}`} onClick={() => moveImage(-1)}>
                 ‹
               </button>
-              <button type="button" className={`${styles.navBtn} ${styles.navNext}`} onClick={() => moveImage(1)} style={{ position: 'absolute', right: '10px', bottom: 'auto', top: '50%' }}>
+              <button type="button" className={`${styles.navBtn} ${styles.lightboxNavBtn} ${styles.lightboxNavNext}`} onClick={() => moveImage(1)}>
                 ›
               </button>
               <button type="button" className={styles.lightboxClose} onClick={() => setIsLightboxOpen(false)}>

@@ -1,0 +1,145 @@
+.page {
+  width: 100%;
+  background: #ffffff;
+}
+
+.inner {
+  width: min(1000px, 92vw);
+  margin: 0 auto;
+  padding: clamp(22px, 3vw, 44px) 0 56px;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(34px, 4vw, 56px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: #111;
+}
+
+.subtitle {
+  margin: 10px 0 22px;
+  color: #111;
+  font-size: 18px;
+  line-height: 1.5;
+}
+
+.bold {
+  font-weight: 800;
+}
+
+.ctaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 18px 0 26px;
+}
+
+.ghostBtn {
+  font-family: inherit;
+  border-radius: 10px;
+  font-weight: 900;
+  cursor: pointer;
+  height: 48px;
+  padding: 0 16px;
+  border: 1px solid #e5e7eb;
+  background: transparent;
+  color: #111;
+}
+
+.card {
+  padding: 18px;
+  border-radius: 12px;
+}
+
+.cardTitle {
+  font-size: 24px;
+  font-weight: 900;
+  margin-bottom: 10px;
+  color: #111;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: 170px 1fr;
+  gap: 10px 14px;
+  margin-top: 8px;
+}
+
+.label {
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.value {
+  color: #111;
+  font-size: 15px;
+}
+
+.total {
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.muted {
+  color: #6b7280;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.breakdown {
+  margin-top: 14px;
+  border: 1px solid #dedede;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.breakdownSummary {
+  list-style: none;
+  cursor: default;
+  padding: 12px;
+  background: #f7f7f7;
+  font-weight: 800;
+  border-bottom: 1px solid #dedede;
+}
+
+.breakdown summary::-webkit-details-marker {
+  display: none;
+}
+
+.breakdownBox {
+  margin-top: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 14px;
+  background: #fff;
+}
+
+.row,
+.rowStrong {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 14px;
+  color: #111;
+}
+
+.rowStrong {
+  font-weight: 900;
+}
+
+.divider {
+  height: 1px;
+  background: #ececec;
+  margin: 10px 0;
+}
+
+@media (max-width: 720px) {
+  .summaryGrid {
+    grid-template-columns: 1fr;
+  }
+}

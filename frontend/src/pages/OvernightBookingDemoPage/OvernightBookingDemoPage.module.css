@@ -24,7 +24,7 @@
 .leftCard,
 .rightCard {
   border-radius: 8px;
-  border: 1px solid #ececec;
+  border: 0;
   background: #fff;
   box-shadow: none;
   padding: 14px;
@@ -610,8 +610,14 @@
 }
 
 .dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  min-height: 10px;
+  padding: 0;
+  flex: 0 0 10px;
+  aspect-ratio: 1 / 1;
+  appearance: none;
   border-radius: 50%;
   border: 0;
   background: #d0d4d8;
@@ -651,6 +657,21 @@
   max-height: 92vh;
   border-radius: 8px;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.lightboxNavBtn {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1001;
+}
+
+.lightboxNavPrev {
+  left: 24px;
+}
+
+.lightboxNavNext {
+  right: 24px;
 }
 
 .lightboxClose {
@@ -765,5 +786,13 @@
   .amenitiesGrid {
     grid-template-columns: 1fr;
     row-gap: 14px;
+  }
+
+  .lightboxNavPrev {
+    left: 12px;
+  }
+
+  .lightboxNavNext {
+    right: 12px;
   }
 }
