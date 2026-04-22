@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styles from "./Dashboard.module.css";
 import hilineLogo from "../../../assets/hilineLogo.png";
@@ -14,14 +14,19 @@ import {
   patchAdminPass,
 } from "../../../api/admin";
 import { ApiError } from "../../../api/client";
+import { createGuestPass, createVisitorPass, getGuestPass, getPortalQr, getVisitorPass } from "../../../api/reservations";
 
 type PassType = "Visitor" | "Overnight Guest";
 type Status = "Active" | "Expired" | "Upcoming" | "Revoked";
 type ScanResult = "allow" | "deny";
 type ContactMethod = "Email" | "SMS";
+type ManualContactMethod = "Email" | "Phone";
+type ManualPassType = "visitor" | "guest";
+
 type PassRecord = {
   passId: string;
   reservationId: string;
+  portalToken: string;
   name: string;
   type: PassType;
   status: Status;
@@ -58,6 +63,24 @@ type EditAudit = {
   changes: string[];
 };
 
+type ManualCreateDraft = {
+  passType: ManualPassType;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  preferredContact: ManualContactMethod;
+  adults: number;
+  children: number;
+  startAt: string;
+  endAt: string;
+  reservationId: string;
+};
+
+const ADULT_PRICE_PER_DAY = 15;
+const CHILD_PRICE_PER_DAY = 10;
+const TX_TAX_RATE = 0.0825;
+
 function toStatus(value: string): Status {
   const normalized = value.toLowerCase();
   if (normalized === "active") return "Active";
@@ -75,23 +98,17 @@ function toScanResult(value?: string): ScanResult {
   return value?.toLowerCase() === "approved" || value?.toLowerCase() === "allow" ? "allow" : "deny";
 }
 
-/**
- * Parse an ISO datetime string and ensure it's treated as UTC.
- * The backend always sends UTC times, so we need to ensure they're handled correctly.
- */
 function parseUTCDateTime(isoDateTime: string): Date {
   if (!isoDateTime) {
-    return new Date(); // Fallback to current time if invalid
+    return new Date();
   }
-  
-  // Ensure the string has timezone indicator
+
   let cleanDateTime = isoDateTime.trim();
-  
-  // If no timezone indicator is present, assume UTC
-  if (!cleanDateTime.includes('Z') && !cleanDateTime.includes('+') && !cleanDateTime.includes('-', 10)) {
-    cleanDateTime += 'Z';
+
+  if (!cleanDateTime.includes("Z") && !cleanDateTime.includes("+") && !cleanDateTime.includes("-", 10)) {
+    cleanDateTime += "Z";
   }
-  
+
   return new Date(cleanDateTime);
 }
 
@@ -109,14 +126,71 @@ function fmtDateTime(value: string) {
 function toInputDateTimeValue(iso: string) {
   const d = parseUTCDateTime(iso);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(
-    d.getMinutes()
-  )}`;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function inputDateTimeToIso(value: string) {
+  const d = new Date(value);
+  return d.toISOString();
+}
+
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isValidPhone(phone: string) {
+  return /^\d{3}-\d{3}-\d{4}$/.test(phone);
+}
+
+function formatPhoneInput(value: string, keepTrailingHyphen = true) {
+  const digits = value.replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length < 3) return digits;
+  if (digits.length === 3) return keepTrailingHyphen ? `${digits}-` : digits;
+  if (digits.length < 6) return `${digits.slice(0, 3)}-${digits.slice(3)}`;
+  if (digits.length === 6) {
+    return keepTrailingHyphen ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-` : `${digits.slice(0, 3)}-${digits.slice(3, 6)}`;
+  }
+  return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+function calculateDays(startIso: string, endIso: string) {
+  const start = parseUTCDateTime(startIso);
+  const end = parseUTCDateTime(endIso);
+  const startDay = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+  const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  const ms = endDay.getTime() - startDay.getTime();
+  return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)) + 1);
+}
+
+function buildDefaultManualDraft(): ManualCreateDraft {
+  const now = new Date();
+  const end = new Date(now);
+  end.setDate(end.getDate() + 1);
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const toInput = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  return {
+    passType: "visitor",
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    preferredContact: "Email",
+    adults: 1,
+    children: 0,
+    startAt: toInput(now),
+    endAt: toInput(end),
+    reservationId: "",
+  };
 }
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const session = getAdminSession();
+  const [session, setSession] = useState(getAdminSession());
+
   const [view, setView] = useState<"passes" | "logs">("passes");
   const [currentTime, setCurrentTime] = useState<string>("");
   const employeeName = session?.name ?? "Admin User";
@@ -133,10 +207,7 @@ export default function Dashboard() {
   const [deniedOnlyPasses, setDeniedOnlyPasses] = useState(false);
 
   const [selectedPassId, setSelectedPassId] = useState<string | null>(null);
-  const selectedPass = useMemo(
-    () => passes.find((p) => p.passId === selectedPassId) ?? null,
-    [passes, selectedPassId]
-  );
+  const selectedPass = useMemo(() => passes.find((p) => p.passId === selectedPassId) ?? null, [passes, selectedPassId]);
 
   const [draft, setDraft] = useState<{
     email: string;
@@ -147,6 +218,19 @@ export default function Dashboard() {
     adults: number;
     children: number;
   } | null>(null);
+
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [qrTargetPass, setQrTargetPass] = useState<PassRecord | null>(null);
+  const [qrPayload, setQrPayload] = useState("");
+  const [qrSecondsLeft, setQrSecondsLeft] = useState(60);
+  const [qrRefreshSeconds, setQrRefreshSeconds] = useState(60);
+  const [qrError, setQrError] = useState("");
+  const [qrRefreshedAt, setQrRefreshedAt] = useState("");
+
+  const [isManualCreateOpen, setIsManualCreateOpen] = useState(false);
+  const [manualDraft, setManualDraft] = useState<ManualCreateDraft>(() => buildDefaultManualDraft());
+  const [manualErrors, setManualErrors] = useState<Record<string, string>>({});
+  const [isCreatingManual, setIsCreatingManual] = useState(false);
 
   const [logPassId, setLogPassId] = useState("");
   const [logDeniedOnly, setLogDeniedOnly] = useState(false);
@@ -176,11 +260,7 @@ export default function Dashboard() {
   const filteredPasses = useMemo(() => {
     return enrichedPasses.filter((p) => {
       const q = search.trim().toLowerCase();
-      const matchSearch =
-        !q ||
-        p.name.toLowerCase().includes(q) ||
-        p.passId.toLowerCase().includes(q) ||
-        p.email.toLowerCase().includes(q);
+      const matchSearch = !q || p.name.toLowerCase().includes(q) || p.passId.toLowerCase().includes(q) || p.email.toLowerCase().includes(q);
 
       const matchStatus = statusFilter === "All" || p.status === statusFilter;
       const matchType = typeFilter === "All" || p.type === typeFilter;
@@ -211,6 +291,63 @@ export default function Dashboard() {
     .sort((a, b) => +new Date(b.at) - +new Date(a.at))
     .slice(0, 5);
 
+  const qrImageUrl = useMemo(() => {
+    if (!qrTargetPass) return "";
+    const cacheBust = `${Date.now()}`;
+    return `/api/v1/access/portal/${encodeURIComponent(qrTargetPass.portalToken)}/qr-image?payload=${encodeURIComponent(
+      qrPayload
+    )}&t=${cacheBust}`;
+  }, [qrTargetPass, qrPayload]);
+
+  const loadDashboardData = useCallback(async () => {
+    if (!isAdminSessionValid(session)) return;
+    try {
+      setLoadError("");
+      const [passData, logData] = await Promise.all([getAdminPasses({ page: 1, page_size: 100 }), getAdminAccessLogs(200, 0)]);
+
+      setPasses(
+        passData.items.map((item) => ({
+          passId: item.pass_id,
+          reservationId: item.reservation_id ?? "N/A",
+          portalToken: item.portal_token ?? "",
+          name: item.guest_name,
+          type: toPassType(item.pass_type),
+          status: toStatus(item.status),
+          startAt: item.start_at,
+          endAt: item.end_at,
+          adults: item.adults,
+          children: item.children,
+          email: item.email,
+          phone: item.phone ?? "",
+          preferredContact: "Email",
+          orderTotal: 0,
+          tax: 0,
+          paymentMethod: "N/A",
+          last4: "----",
+          squarePaymentId: "N/A",
+        }))
+      );
+
+      setLogs(
+        logData.items.map((item, index) => ({
+          id: item.event_id ?? `${item.pass_id ?? "event"}-${index}`,
+          passId: item.pass_id ?? "N/A",
+          name: item.guest_name ?? "Unknown",
+          at: item.timestamp ?? new Date().toISOString(),
+          result: toScanResult(item.result),
+          reason: item.reason ?? item.result ?? "N/A",
+          location: item.location ?? "Unknown",
+        }))
+      );
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setLoadError(error.message);
+      } else {
+        setLoadError("Unable to load dashboard data.");
+      }
+    }
+  }, [session]);
+
   function openDetails(passId: string) {
     const pass = passes.find((p) => p.passId === passId);
     if (!pass) return;
@@ -226,20 +363,69 @@ export default function Dashboard() {
     });
   }
 
+  async function openQrModal(pass: PassRecord) {
+    setQrError("");
+
+    let portalToken = pass.portalToken;
+    if (!portalToken) {
+      try {
+        if (pass.type === "Overnight Guest") {
+          const guest = await getGuestPass(pass.passId);
+          portalToken = guest.portal_token;
+        } else {
+          const visitor = await getVisitorPass(pass.passId);
+          portalToken = visitor.portal_token;
+        }
+      } catch {
+        setQrError("Unable to find portal token for this pass.");
+        return;
+      }
+    }
+
+    setQrTargetPass({ ...pass, portalToken });
+    setIsQrModalOpen(true);
+  }
+
+  function closeQrModal() {
+    setIsQrModalOpen(false);
+    setQrTargetPass(null);
+    setQrPayload("");
+    setQrError("");
+    setQrRefreshedAt("");
+  }
+
+  async function refreshQrNow() {
+    if (!qrTargetPass?.portalToken) return;
+    try {
+      const qr = await getPortalQr(qrTargetPass.portalToken);
+      setQrPayload(qr.qr_payload);
+      setQrRefreshSeconds(qr.refresh_seconds);
+      setQrSecondsLeft(qr.refresh_seconds);
+      setQrRefreshedAt(new Date().toLocaleTimeString());
+      setQrError("");
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setQrError(error.message);
+      } else {
+        setQrError("Unable to refresh QR code.");
+      }
+    }
+  }
+
   function saveDetails() {
     if (!selectedPass || !draft) return;
 
     const changes: string[] = [];
-    if (selectedPass.email !== draft.email) changes.push(`Email: ${selectedPass.email} → ${draft.email}`);
-    if (selectedPass.phone !== draft.phone) changes.push(`Phone: ${selectedPass.phone} → ${draft.phone}`);
+    if (selectedPass.email !== draft.email) changes.push(`Email: ${selectedPass.email} -> ${draft.email}`);
+    if (selectedPass.phone !== draft.phone) changes.push(`Phone: ${selectedPass.phone} -> ${draft.phone}`);
     if (selectedPass.preferredContact !== draft.preferredContact)
-      changes.push(`Preferred contact: ${selectedPass.preferredContact} → ${draft.preferredContact}`);
+      changes.push(`Preferred contact: ${selectedPass.preferredContact} -> ${draft.preferredContact}`);
     if (toInputDateTimeValue(selectedPass.startAt) !== draft.startAt)
-      changes.push(`Start: ${fmtDateTime(selectedPass.startAt)} → ${fmtDateTime(new Date(draft.startAt).toISOString())}`);
+      changes.push(`Start: ${fmtDateTime(selectedPass.startAt)} -> ${fmtDateTime(new Date(draft.startAt).toISOString())}`);
     if (toInputDateTimeValue(selectedPass.endAt) !== draft.endAt)
-      changes.push(`End: ${fmtDateTime(selectedPass.endAt)} → ${fmtDateTime(new Date(draft.endAt).toISOString())}`);
+      changes.push(`End: ${fmtDateTime(selectedPass.endAt)} -> ${fmtDateTime(new Date(draft.endAt).toISOString())}`);
     if (selectedPass.adults !== draft.adults || selectedPass.children !== draft.children)
-      changes.push(`Party size: ${selectedPass.adults}/${selectedPass.children} → ${draft.adults}/${draft.children}`);
+      changes.push(`Party size: ${selectedPass.adults}/${selectedPass.children} -> ${draft.adults}/${draft.children}`);
 
     const nextStartAt = new Date(draft.startAt).toISOString();
     const nextEndAt = new Date(draft.endAt).toISOString();
@@ -290,66 +476,105 @@ export default function Dashboard() {
     setDraft(null);
   }
 
-  useEffect(() => {
-    async function loadDashboardData() {
-      if (!isAdminSessionValid(session)) return;
-      try {
-        setLoadError("");
-        const [passData, logData] = await Promise.all([
-          getAdminPasses({ page: 1, page_size: 100 }),
-          getAdminAccessLogs(200, 0),
-        ]);
+  function openManualCreateModal() {
+    setManualDraft(buildDefaultManualDraft());
+    setManualErrors({});
+    setIsManualCreateOpen(true);
+  }
 
-        setPasses(
-          passData.items.map((item) => ({
-            passId: item.pass_id,
-            reservationId: item.reservation_id ?? "N/A",
-            name: item.guest_name,
-            type: toPassType(item.pass_type),
-            status: toStatus(item.status),
-            startAt: item.start_at,
-            endAt: item.end_at,
-            adults: item.adults,
-            children: item.children,
-            email: item.email,
-            phone: item.phone ?? "",
-            preferredContact: "Email",
-            orderTotal: 0,
-            tax: 0,
-            paymentMethod: "N/A",
-            last4: "----",
-            squarePaymentId: "N/A",
-          }))
-        );
+  async function submitManualCreate() {
+    const nextErrors: Record<string, string> = {};
+    const fullName = `${manualDraft.firstName.trim()} ${manualDraft.lastName.trim()}`.trim();
 
-        setLogs(
-          logData.items.map((item, index) => ({
-            id: item.event_id ?? `${item.pass_id ?? "event"}-${index}`,
-            passId: item.pass_id ?? "N/A",
-            name: item.guest_name ?? "Unknown",
-            at: item.timestamp ?? new Date().toISOString(),
-            result: toScanResult(item.result),
-            reason: item.reason ?? item.result ?? "N/A",
-            location: item.location ?? "Unknown",
-          }))
-        );
-      } catch (error) {
-        if (error instanceof ApiError) {
-          setLoadError(error.message);
-        } else {
-          setLoadError("Unable to load dashboard data.");
-        }
+    if (!manualDraft.firstName.trim()) nextErrors.firstName = "First name is required.";
+    if (!manualDraft.lastName.trim()) nextErrors.lastName = "Last name is required.";
+
+    if (!manualDraft.email.trim()) {
+      nextErrors.email = "Email is required.";
+    } else if (!isValidEmail(manualDraft.email.trim())) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+
+    if (!manualDraft.phone.trim()) {
+      nextErrors.phone = "Phone is required.";
+    } else if (!isValidPhone(manualDraft.phone.trim())) {
+      nextErrors.phone = "Phone must be in xxx-xxx-xxxx format.";
+    }
+
+    if (!manualDraft.startAt) nextErrors.startAt = "Start date/time is required.";
+    if (!manualDraft.endAt) nextErrors.endAt = "End date/time is required.";
+
+    if (manualDraft.startAt && manualDraft.endAt && new Date(manualDraft.endAt) <= new Date(manualDraft.startAt)) {
+      nextErrors.endAt = "End must be after start.";
+    }
+
+    if (manualDraft.passType === "guest" && !manualDraft.reservationId.trim()) {
+      nextErrors.reservationId = "Reservation ID is required for overnight guest passes.";
+    }
+
+    if (manualDraft.passType === "visitor" && manualDraft.adults + manualDraft.children < 1) {
+      nextErrors.partySize = "At least one guest is required.";
+    }
+
+    setManualErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) return;
+
+    setIsCreatingManual(true);
+    try {
+      if (manualDraft.passType === "guest") {
+        await createGuestPass({
+          name: fullName,
+          email: manualDraft.email.trim(),
+          phone: manualDraft.phone.trim(),
+          reservation_id: manualDraft.reservationId.trim(),
+          check_in: inputDateTimeToIso(manualDraft.startAt),
+          check_out: inputDateTimeToIso(manualDraft.endAt),
+        });
+      } else {
+        const startIso = inputDateTimeToIso(manualDraft.startAt);
+        const endIso = inputDateTimeToIso(manualDraft.endAt);
+        const days = calculateDays(startIso, endIso);
+        const subtotal = manualDraft.adults * days * ADULT_PRICE_PER_DAY + manualDraft.children * days * CHILD_PRICE_PER_DAY;
+        const total = +(subtotal + subtotal * TX_TAX_RATE).toFixed(2);
+
+        await createVisitorPass({
+          name: fullName,
+          email: manualDraft.email.trim(),
+          phone: manualDraft.phone.trim(),
+          vehicle_info: "N/A",
+          num_days: days,
+          num_adults: manualDraft.adults,
+          num_children: manualDraft.children,
+          payment_amount: total,
+          payment_method: "cash",
+          payment_source_id: "",
+          idempotency_key: `admin-manual-${Date.now()}`,
+        });
       }
-    }
 
-    void loadDashboardData();
-  }, [session]);
+      setIsManualCreateOpen(false);
+      setManualErrors({});
+      await loadDashboardData();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setManualErrors({ submit: error.message });
+      } else {
+        setManualErrors({ submit: "Unable to create pass right now." });
+      }
+    } finally {
+      setIsCreatingManual(false);
+    }
+  }
 
   useEffect(() => {
-    if (!isAdminSessionValid(session)) {
-      clearAdminSession();
-      navigate("/admin/login", { replace: true });
-    }
+    void loadDashboardData();
+  }, [loadDashboardData]);
+
+  useEffect(() => {
+    if (isAdminSessionValid(session)) return;
+
+    clearAdminSession();
+    navigate("/admin/login", { replace: true });
   }, [navigate, session]);
 
   useEffect(() => {
@@ -367,13 +592,36 @@ export default function Dashboard() {
       });
       setCurrentTime(cstTime);
     }
+
     updateTime();
     const interval = setInterval(updateTime, 1000);
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!isQrModalOpen || !qrTargetPass?.portalToken) return;
+    void refreshQrNow();
+  }, [isQrModalOpen, qrTargetPass]);
+
+  useEffect(() => {
+    if (!isQrModalOpen) return;
+
+    const interval = window.setInterval(() => {
+      setQrSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+
+    return () => window.clearInterval(interval);
+  }, [isQrModalOpen, qrRefreshSeconds]);
+
+  useEffect(() => {
+    if (!isQrModalOpen) return;
+    if (qrSecondsLeft > 0) return;
+    void refreshQrNow();
+  }, [isQrModalOpen, qrSecondsLeft]);
+
   function handleLogout() {
     clearAdminSession();
+    setSession(null);
     navigate("/admin/login");
   }
 
@@ -382,9 +630,18 @@ export default function Dashboard() {
       <section className={styles.header}>
         <h1 className={styles.title}>Admin Dashboard</h1>
         <div className={styles.kpis}>
-          <div className={styles.kpi}><span>Today Accepted</span><strong>{todayAccepted}</strong></div>
-          <div className={styles.kpi}><span>Today Denied</span><strong>{todayDenied}</strong></div>
-          <div className={styles.kpi}><span>Active Passes Now</span><strong>{activeNow}</strong></div>
+          <div className={styles.kpi}>
+            <span>Today Accepted</span>
+            <strong>{todayAccepted}</strong>
+          </div>
+          <div className={styles.kpi}>
+            <span>Today Denied</span>
+            <strong>{todayDenied}</strong>
+          </div>
+          <div className={styles.kpi}>
+            <span>Active Passes Now</span>
+            <strong>{activeNow}</strong>
+          </div>
         </div>
       </section>
 
@@ -397,7 +654,7 @@ export default function Dashboard() {
           <ul className={styles.denialList}>
             {recentDenials.map((d) => (
               <li key={d.id}>
-                <strong>{d.passId}</strong> — {d.reason} ({d.location}) · {fmtDateTime(d.at)}
+                <strong>{d.passId}</strong> - {d.reason} ({d.location}) . {fmtDateTime(d.at)}
               </li>
             ))}
           </ul>
@@ -421,17 +678,11 @@ export default function Dashboard() {
           </div>
 
           <nav className={styles.sidebarNav}>
-            <button
-              className={view === "passes" ? styles.sideBtnActive : styles.sideBtn}
-              onClick={() => setView("passes")}
-            >
+            <button className={view === "passes" ? styles.sideBtnActive : styles.sideBtn} onClick={() => setView("passes")}>
               <img src={lookupGlassIcon} alt="Guest Directory" className={styles.navIcon} />
               Guest Directory
             </button>
-            <button
-              className={view === "logs" ? styles.sideBtnActive : styles.sideBtn}
-              onClick={() => setView("logs")}
-            >
+            <button className={view === "logs" ? styles.sideBtnActive : styles.sideBtn} onClick={() => setView("logs")}>
               <img src={clipboardIcon} alt="Access Logs" className={styles.navIcon} />
               Access Logs
             </button>
@@ -445,27 +696,42 @@ export default function Dashboard() {
         <section className={styles.contentPane}>
           {view === "passes" ? (
             <section className={styles.panel}>
+              <div className={styles.filtersHeader}>
+                <h3 className={styles.filtersTitle}>Guest Directory</h3>
+                <button className={styles.primaryBtn} onClick={openManualCreateModal}>Create Pass +</button>
+              </div>
+
               <div className={styles.filters}>
-                <input
-                  className={styles.input}
-                  placeholder="Search name, pass ID, email"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
+                <input className={styles.input} placeholder="Search name, pass ID, email" value={search} onChange={(e) => setSearch(e.target.value)} />
                 <select className={styles.select} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "All" | Status)}>
-                  <option>All</option><option>Active</option><option>Expired</option><option>Upcoming</option><option>Revoked</option>
+                  <option>All</option>
+                  <option>Active</option>
+                  <option>Expired</option>
+                  <option>Upcoming</option>
+                  <option>Revoked</option>
                 </select>
                 <select className={styles.select} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as "All" | PassType)}>
-                  <option>All</option><option>Visitor</option><option>Overnight Guest</option>
+                  <option>All</option>
+                  <option>Visitor</option>
+                  <option>Overnight Guest</option>
                 </select>
-                <label className={styles.check}><input type="checkbox" checked={deniedOnlyPasses} onChange={(e) => setDeniedOnlyPasses(e.target.checked)} /> Denied only</label>
+                <label className={styles.check}>
+                  <input type="checkbox" checked={deniedOnlyPasses} onChange={(e) => setDeniedOnlyPasses(e.target.checked)} /> Denied only
+                </label>
               </div>
 
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Pass ID</th><th>Name</th><th>Status</th><th>Access period</th><th>Type</th><th>Party size</th><th>Last scan</th><th />
+                      <th>Pass ID</th>
+                      <th>Name</th>
+                      <th>Status</th>
+                      <th>Access period</th>
+                      <th>Type</th>
+                      <th>Party size</th>
+                      <th>Last scan</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -473,23 +739,36 @@ export default function Dashboard() {
                       <tr key={p.passId}>
                         <td>{p.passId}</td>
                         <td>{p.name}</td>
-                        <td><span className={`${styles.pill} ${styles[`pill${p.status}`]}`}>{p.status}</span></td>
-                        <td>{fmtDateTime(p.startAt)} - {fmtDateTime(p.endAt)}</td>
+                        <td>
+                          <span className={`${styles.pill} ${styles[`pill${p.status}`]}`}>{p.status}</span>
+                        </td>
+                        <td>
+                          {fmtDateTime(p.startAt)} - {fmtDateTime(p.endAt)}
+                        </td>
                         <td>{p.type}</td>
-                        <td>{p.adults}/{p.children}</td>
+                        <td>
+                          {p.adults}/{p.children}
+                        </td>
                         <td>
                           {p.lastScan ? (
                             <span>
                               {fmtDateTime(p.lastScan.at)} .{" "}
-                              <b className={p.lastScan.result === "allow" ? styles.allow : styles.deny}>
-                                {p.lastScan.result.toUpperCase()}
-                              </b>
+                              <b className={p.lastScan.result === "allow" ? styles.allow : styles.deny}>{p.lastScan.result.toUpperCase()}</b>
                             </span>
                           ) : (
                             <span className={styles.muted}>No scans</span>
                           )}
                         </td>
-                        <td><button className={styles.linkBtn} onClick={() => openDetails(p.passId)}>View / Edit</button></td>
+                        <td>
+                          <div className={styles.rowActions}>
+                            <button className={styles.linkBtn} onClick={() => openDetails(p.passId)}>
+                              View / Edit
+                            </button>
+                            <button className={styles.linkBtn} onClick={() => void openQrModal(p)}>
+                              View QR
+                            </button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -499,22 +778,24 @@ export default function Dashboard() {
           ) : (
             <section className={styles.panel}>
               <div className={styles.filters}>
-                <input
-                  className={styles.input}
-                  placeholder="Pass ID"
-                  value={logPassId}
-                  onChange={(e) => setLogPassId(e.target.value)}
-                />
+                <input className={styles.input} placeholder="Pass ID" value={logPassId} onChange={(e) => setLogPassId(e.target.value)} />
                 <input className={styles.select} type="datetime-local" value={logFrom} onChange={(e) => setLogFrom(e.target.value)} />
                 <input className={styles.select} type="datetime-local" value={logTo} onChange={(e) => setLogTo(e.target.value)} />
-                <label className={styles.check}><input type="checkbox" checked={logDeniedOnly} onChange={(e) => setLogDeniedOnly(e.target.checked)} /> Denied only</label>
+                <label className={styles.check}>
+                  <input type="checkbox" checked={logDeniedOnly} onChange={(e) => setLogDeniedOnly(e.target.checked)} /> Denied only
+                </label>
               </div>
 
               <div className={styles.tableWrap}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
-                      <th>Time</th><th>Pass ID</th><th>Name</th><th>Result</th><th>Reason</th><th>Scanner/Location</th>
+                      <th>Time</th>
+                      <th>Pass ID</th>
+                      <th>Name</th>
+                      <th>Result</th>
+                      <th>Reason</th>
+                      <th>Scanner/Location</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -523,7 +804,9 @@ export default function Dashboard() {
                         <td>{fmtDateTime(l.at)}</td>
                         <td>{l.passId}</td>
                         <td>{l.name}</td>
-                        <td><b className={l.result === "allow" ? styles.allow : styles.deny}>{l.result.toUpperCase()}</b></td>
+                        <td>
+                          <b className={l.result === "allow" ? styles.allow : styles.deny}>{l.result.toUpperCase()}</b>
+                        </td>
                         <td>{l.reason}</td>
                         <td>{l.location}</td>
                       </tr>
@@ -542,43 +825,83 @@ export default function Dashboard() {
             <h3 className={styles.drawerTitle}>Pass Details</h3>
 
             <div className={styles.group}>
-              <div><strong>Pass ID:</strong> {selectedPass.passId}</div>
-              <div><strong>Reservation ID:</strong> {selectedPass.reservationId}</div>
-              <div><strong>Status:</strong> {selectedPass.status}</div>
-              <div><strong>Access Window:</strong> {fmtDateTime(selectedPass.startAt)} - {fmtDateTime(selectedPass.endAt)}</div>
+              <div>
+                <strong>Pass ID:</strong> {selectedPass.passId}
+              </div>
+              <div>
+                <strong>Reservation ID:</strong> {selectedPass.reservationId}
+              </div>
+              <div>
+                <strong>Status:</strong> {selectedPass.status}
+              </div>
+              <div>
+                <strong>Access Window:</strong> {fmtDateTime(selectedPass.startAt)} - {fmtDateTime(selectedPass.endAt)}
+              </div>
             </div>
 
             <h4 className={styles.subTitle}>Editable</h4>
             <div className={styles.formGrid}>
-              <label>Email<input className={styles.input} value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} /></label>
-              <label>Phone<input className={styles.input} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></label>
-              <label>Preferred Contact
+              <label>
+                Email
+                <input className={styles.input} value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
+              </label>
+              <label>
+                Phone
+                <input
+                  className={styles.input}
+                  value={draft.phone}
+                  onChange={(e) => setDraft({ ...draft, phone: formatPhoneInput(e.target.value) })}
+                  placeholder="xxx-xxx-xxxx"
+                  inputMode="tel"
+                  maxLength={12}
+                />
+              </label>
+              <label>
+                Preferred Contact
                 <select className={styles.select} value={draft.preferredContact} onChange={(e) => setDraft({ ...draft, preferredContact: e.target.value as ContactMethod })}>
                   <option>Email</option>
                   <option>SMS</option>
                 </select>
               </label>
-              <label>Start<input className={styles.select} type="datetime-local" value={draft.startAt} onChange={(e) => setDraft({ ...draft, startAt: e.target.value })} /></label>
-              <label>End<input className={styles.select} type="datetime-local" value={draft.endAt} onChange={(e) => setDraft({ ...draft, endAt: e.target.value })} /></label>
-              <label>Adults<input className={styles.input} type="number" min={0} value={draft.adults} onChange={(e) => setDraft({ ...draft, adults: Number(e.target.value) })} /></label>
-              <label>Children<input className={styles.input} type="number" min={0} value={draft.children} onChange={(e) => setDraft({ ...draft, children: Number(e.target.value) })} /></label>
+              <label>
+                Start
+                <input className={styles.select} type="datetime-local" value={draft.startAt} onChange={(e) => setDraft({ ...draft, startAt: e.target.value })} />
+              </label>
+              <label>
+                End
+                <input className={styles.select} type="datetime-local" value={draft.endAt} onChange={(e) => setDraft({ ...draft, endAt: e.target.value })} />
+              </label>
+              <label>
+                Adults
+                <input className={styles.input} type="number" min={0} value={draft.adults} onChange={(e) => setDraft({ ...draft, adults: Number(e.target.value) })} />
+              </label>
+              <label>
+                Children
+                <input className={styles.input} type="number" min={0} value={draft.children} onChange={(e) => setDraft({ ...draft, children: Number(e.target.value) })} />
+              </label>
             </div>
 
             <h4 className={styles.subTitle}>Read-only Payment</h4>
             <div className={styles.group}>
-              <div><strong>Order Total:</strong> ${(selectedPass.orderTotal + selectedPass.tax).toFixed(2)}</div>
-              <div><strong>Tax:</strong> ${selectedPass.tax.toFixed(2)}</div>
-              <div><strong>Payment:</strong> {selectedPass.paymentMethod} •••• {selectedPass.last4}</div>
-              <div><strong>Square Payment ID:</strong> {selectedPass.squarePaymentId}</div>
+              <div>
+                <strong>Order Total:</strong> ${(selectedPass.orderTotal + selectedPass.tax).toFixed(2)}
+              </div>
+              <div>
+                <strong>Tax:</strong> ${selectedPass.tax.toFixed(2)}
+              </div>
+              <div>
+                <strong>Payment:</strong> {selectedPass.paymentMethod} . . . . {selectedPass.last4}
+              </div>
+              <div>
+                <strong>Square Payment ID:</strong> {selectedPass.squarePaymentId}
+              </div>
             </div>
 
             <h4 className={styles.subTitle}>Recent Access Attempts</h4>
             <ul className={styles.logList}>
               {(logsByPass.get(selectedPass.passId) ?? []).slice(0, 10).map((l) => (
                 <li key={l.id}>
-                  {fmtDateTime(l.at)} —{" "}
-                  <b className={l.result === "allow" ? styles.allow : styles.deny}>{l.result.toUpperCase()}</b>{" "}
-                  ({l.reason})
+                  {fmtDateTime(l.at)} - <b className={l.result === "allow" ? styles.allow : styles.deny}>{l.result.toUpperCase()}</b> ({l.reason})
                 </li>
               ))}
             </ul>
@@ -590,14 +913,16 @@ export default function Dashboard() {
                 .slice(0, 5)
                 .map((a) => (
                   <li key={a.id}>
-                    {fmtDateTime(a.changedAt)} — {a.changedBy} ({a.reason})
+                    {fmtDateTime(a.changedAt)} - {a.changedBy} ({a.reason})
                   </li>
                 ))}
               {!audit.some((a) => a.passId === selectedPass.passId) ? <li className={styles.muted}>No edits yet.</li> : null}
             </ul>
 
             <div className={styles.drawerActions}>
-              <button className={styles.secondaryBtn} onClick={() => setSelectedPassId(null)}>Cancel</button>
+              <button className={styles.secondaryBtn} onClick={() => setSelectedPassId(null)}>
+                Cancel
+              </button>
               <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </button>
@@ -605,6 +930,173 @@ export default function Dashboard() {
           </div>
         </aside>
       )}
+
+      {isQrModalOpen && qrTargetPass ? (
+        <div className={styles.modalBackdrop} onClick={closeQrModal} role="dialog" aria-modal="true" aria-label="Current pass QR">
+          <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <h3 className={styles.drawerTitle}>Current QR: {qrTargetPass.name}</h3>
+            <p className={styles.muted}>Pass ID: {qrTargetPass.passId}</p>
+
+            <div className={styles.qrFrame}>
+              {qrPayload ? <img src={qrImageUrl} alt="Current pass QR" className={styles.qrImage} /> : <p className={styles.muted}>Loading QR...</p>}
+            </div>
+
+            <p className={styles.qrTimer}>
+              QR refreshes in <strong>{qrSecondsLeft}s</strong>
+            </p>
+            {qrRefreshedAt ? <p className={styles.muted}>Refreshed at {qrRefreshedAt}</p> : null}
+            {qrError ? <p className={styles.errorText}>{qrError}</p> : null}
+
+            <div className={styles.drawerActions}>
+              <button className={styles.secondaryBtn} onClick={closeQrModal}>
+                Close
+              </button>
+              <button className={styles.primaryBtn} onClick={() => void refreshQrNow()}>
+                Refresh QR
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {isManualCreateOpen ? (
+        <div className={styles.modalBackdrop} onClick={() => setIsManualCreateOpen(false)} role="dialog" aria-modal="true" aria-label="Manual pass creation">
+          <div className={styles.modalCard} onClick={(e) => e.stopPropagation()}>
+            <h3 className={styles.drawerTitle}>Manual Pass Creation</h3>
+            <p className={styles.muted}>Create a pass from the admin guest directory without entering payment card details.</p>
+
+            <div className={styles.formGrid}>
+              <label>
+                Pass Type
+                <select
+                  className={styles.select}
+                  value={manualDraft.passType}
+                  onChange={(e) => setManualDraft({ ...manualDraft, passType: e.target.value as ManualPassType })}
+                >
+                  <option value="visitor">Visitor Day Pass</option>
+                  <option value="guest">Overnight Guest Pass</option>
+                </select>
+              </label>
+
+              <label>
+                First Name
+                <input
+                  className={styles.input}
+                  value={manualDraft.firstName}
+                  onChange={(e) => setManualDraft({ ...manualDraft, firstName: e.target.value })}
+                />
+                {manualErrors.firstName ? <span className={styles.errorText}>{manualErrors.firstName}</span> : null}
+              </label>
+
+              <label>
+                Last Name
+                <input className={styles.input} value={manualDraft.lastName} onChange={(e) => setManualDraft({ ...manualDraft, lastName: e.target.value })} />
+                {manualErrors.lastName ? <span className={styles.errorText}>{manualErrors.lastName}</span> : null}
+              </label>
+
+              <label>
+                Email
+                <input className={styles.input} value={manualDraft.email} onChange={(e) => setManualDraft({ ...manualDraft, email: e.target.value })} />
+                {manualErrors.email ? <span className={styles.errorText}>{manualErrors.email}</span> : null}
+              </label>
+
+              <label>
+                Phone (xxx-xxx-xxxx)
+                <input
+                  className={styles.input}
+                  value={manualDraft.phone}
+                  onChange={(e) => setManualDraft({ ...manualDraft, phone: formatPhoneInput(e.target.value) })}
+                  placeholder="xxx-xxx-xxxx"
+                  inputMode="tel"
+                  maxLength={12}
+                />
+                {manualErrors.phone ? <span className={styles.errorText}>{manualErrors.phone}</span> : null}
+              </label>
+
+              <label>
+                Preferred Contact
+                <select
+                  className={styles.select}
+                  value={manualDraft.preferredContact}
+                  onChange={(e) => setManualDraft({ ...manualDraft, preferredContact: e.target.value as ManualContactMethod })}
+                >
+                  <option value="Email">Email</option>
+                  <option value="Phone">Phone</option>
+                </select>
+              </label>
+
+              <label>
+                Access Start
+                <input
+                  className={styles.select}
+                  type="datetime-local"
+                  value={manualDraft.startAt}
+                  onChange={(e) => setManualDraft({ ...manualDraft, startAt: e.target.value })}
+                />
+                {manualErrors.startAt ? <span className={styles.errorText}>{manualErrors.startAt}</span> : null}
+              </label>
+
+              <label>
+                Access End
+                <input
+                  className={styles.select}
+                  type="datetime-local"
+                  value={manualDraft.endAt}
+                  onChange={(e) => setManualDraft({ ...manualDraft, endAt: e.target.value })}
+                />
+                {manualErrors.endAt ? <span className={styles.errorText}>{manualErrors.endAt}</span> : null}
+              </label>
+
+              {manualDraft.passType === "guest" ? (
+                <label>
+                  Reservation ID
+                  <input
+                    className={styles.input}
+                    value={manualDraft.reservationId}
+                    onChange={(e) => setManualDraft({ ...manualDraft, reservationId: e.target.value })}
+                  />
+                  {manualErrors.reservationId ? <span className={styles.errorText}>{manualErrors.reservationId}</span> : null}
+                </label>
+              ) : (
+                <>
+                  <label>
+                    Adults
+                    <input
+                      className={styles.input}
+                      type="number"
+                      min={0}
+                      value={manualDraft.adults}
+                      onChange={(e) => setManualDraft({ ...manualDraft, adults: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    Children
+                    <input
+                      className={styles.input}
+                      type="number"
+                      min={0}
+                      value={manualDraft.children}
+                      onChange={(e) => setManualDraft({ ...manualDraft, children: Number(e.target.value) })}
+                    />
+                  </label>
+                  {manualErrors.partySize ? <span className={styles.errorText}>{manualErrors.partySize}</span> : null}
+                </>
+              )}
+            </div>
+
+            {manualErrors.submit ? <p className={styles.errorText}>{manualErrors.submit}</p> : null}
+
+            <div className={styles.drawerActions}>
+              <button className={styles.secondaryBtn} onClick={() => setIsManualCreateOpen(false)}>
+                Cancel
+              </button>
+              <button className={styles.primaryBtn} onClick={() => void submitManualCreate()} disabled={isCreatingManual}>
+                {isCreatingManual ? "Creating..." : "Create Pass"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

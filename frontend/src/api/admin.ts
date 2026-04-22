@@ -40,6 +40,7 @@ export type AdminAccessLog = {
 export type AdminPass = {
   pass_id: string;
   reservation_id?: string;
+  portal_token?: string;
   guest_name: string;
   email: string;
   phone?: string;
