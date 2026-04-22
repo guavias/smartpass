@@ -223,6 +223,19 @@
   gap: 8px;
   margin-bottom: 10px;
 }
+
+.filtersHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.filtersTitle {
+  margin: 0;
+  font-size: 16px;
+}
 .check {
   display: flex;
   align-items: center;
@@ -302,6 +315,13 @@
   text-decoration: underline;
 }
 
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
 .drawerBackdrop {
   position: fixed;
   inset: 0;
@@ -358,6 +378,53 @@
   gap: 8px;
 }
 
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 30;
+  padding: 16px;
+}
+
+.modalCard {
+  width: min(620px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  padding: 16px;
+}
+
+.qrFrame {
+  margin-top: 10px;
+  min-height: 280px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+}
+
+.qrImage {
+  width: min(320px, 92%);
+  height: auto;
+  image-rendering: crisp-edges;
+}
+
+.qrTimer {
+  margin: 10px 0 4px;
+}
+
+.errorText {
+  color: #b91c1c;
+  font-size: 13px;
+}
+
 .primaryBtn,
 .secondaryBtn {
   height: 36px;
@@ -398,6 +465,21 @@
   .workspace {
     grid-column: 1;
     grid-template-columns: 1fr;
+  }
+
+  .filtersHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowActions {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .modalCard {
+    width: 100%;
   }
 
   .leftSidebar {
