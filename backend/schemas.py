@@ -267,6 +267,8 @@ class AdminPassPatchRequest(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     vehicle_info: Optional[str] = None
+    num_adults: Optional[int] = None
+    num_children: Optional[int] = None
 
 
 class AdminAccessLogItem(BaseModel):

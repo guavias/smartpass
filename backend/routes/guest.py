@@ -6,7 +6,7 @@ import pytz
 
 from fastapi import APIRouter, HTTPException
 
-from database import create_pass, get_guest_pass_by_reservation, get_pass_by_id, update_pass, utcnow
+from database import create_pass, get_day_pass_by_reservation, get_guest_pass_by_reservation, get_pass_by_id, update_pass, utcnow
 from email_service import EmailService
 from payment_service import PaymentService
 from rotating_qr import RotatingQRCodeService
@@ -253,12 +253,25 @@ async def get_guest_pass(guest_id: str):
 async def find_guest_portal(payload: GuestLookupRequest):
     """
     Find guest portal by reservation + email.
+    Checks companion day pass (visitor type) first, then falls back to overnight guest pass.
+    Status is recalculated from access window on each lookup.
     """
-    guest_pass = await get_guest_pass_by_reservation(payload.email, payload.reservation_id)
-    if guest_pass:
-        return _serialize_guest(guest_pass)
-    
-    raise HTTPException(status_code=404, detail="No reservation portal found")
+    # Try companion day pass first (the Crappie House QR pass included with overnight stays)
+    doc = await get_day_pass_by_reservation(payload.email, payload.reservation_id)
+
+    # Fall back to the overnight guest pass itself
+    if not doc:
+        doc = await get_guest_pass_by_reservation(payload.email, payload.reservation_id)
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="No reservation portal found")
+
+    # Recalculate status from access window and persist if changed
+    calculated_status = _calculate_pass_status(doc)
+    if calculated_status != doc.get("status"):
+        doc = await update_pass(doc["id"], {"status": calculated_status}) or doc
+
+    return _serialize_guest(doc)
 
 
 @router.put("/{guest_id}")

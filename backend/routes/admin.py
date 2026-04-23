@@ -226,6 +226,9 @@ async def patch_admin_pass(pass_id: str, payload: AdminPassPatchRequest):
     if "access_end" in allowed_updates:
         allowed_updates["access_end"] = _normalize_utc(allowed_updates["access_end"])
 
+    if "email" in allowed_updates:
+        allowed_updates["email"] = str(allowed_updates["email"]).strip().lower()
+
     updated = await update_pass(pass_id, allowed_updates)
     if not updated:
         raise HTTPException(status_code=404, detail="Pass not found")

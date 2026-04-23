@@ -438,6 +438,8 @@ export default function Dashboard() {
       phone: draft.phone,
       access_start: nextStartAt,
       access_end: nextEndAt,
+      num_adults: draft.adults,
+      num_children: draft.children,
     })
       .catch(() => {
         // Keep local edits visible even if the backend rejects unsupported fields.
@@ -535,7 +537,6 @@ export default function Dashboard() {
           check_out: inputDateTimeToIso(manualDraft.endAt),
           num_adults: manualDraft.adults,
           num_children: manualDraft.children,
-          pets: manualDraft.pets,
         });
       } else {
         const startIso = inputDateTimeToIso(manualDraft.startAt);

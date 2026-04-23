@@ -210,18 +210,33 @@ async def get_pass_by_qr_payload(qr_payload: str) -> Optional[dict[str, Any]]:
 
 
 async def get_guest_pass_by_reservation(email: str, reservation_id: str) -> Optional[dict[str, Any]]:
+	"""Find overnight guest pass by email + reservation_id (includes inactive future passes)."""
 	db = get_database()
 	doc = await db.passes.find_one(
 		{
 			"user_type": "guest",
 			"email": email.lower(),
 			"reservation_id": reservation_id,
-			"status": {"$in": ["active", "expired"]},
+			"status": {"$in": ["active", "inactive", "expired"]},
 		},
 		sort=[("created_at", DESCENDING)],
 	)
 	return _normalize(doc)
 
+
+async def get_day_pass_by_reservation(email: str, reservation_id: str) -> Optional[dict[str, Any]]:
+	"""Find companion day pass (visitor type) linked to an overnight reservation."""
+	db = get_database()
+	doc = await db.passes.find_one(
+		{
+			"user_type": "visitor",
+			"email": email.lower(),
+			"reservation_id": reservation_id,
+			"status": {"$in": ["active", "inactive", "expired"]},
+		},
+		sort=[("created_at", DESCENDING)],
+	)
+	return _normalize(doc)
 
 
 async def find_passes_by_email(email: str, limit: int = 10) -> list[dict[str, Any]]:

@@ -179,6 +179,8 @@ export async function patchAdminPass(passId: string, payload: {
   email?: string;
   phone?: string;
   vehicle_info?: string;
+  num_adults?: number;
+  num_children?: number;
 }): Promise<AdminPass> {
   return apiFetch<AdminPass>(`/api/v1/admin/passes/${encodeURIComponent(passId)}`, {
     method: "PATCH",
