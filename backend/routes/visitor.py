@@ -29,18 +29,22 @@ def _to_utc(value: datetime) -> datetime:
 def _normalize_checkin_to_start_of_day(checkin: datetime) -> datetime:
     """
     Normalize check-in time:
-    - Same-day booking (CST): use now for immediate access
-    - Future date: set to 12:00:00 AM CST of that date
+    - Same-day or past booking: start immediately (now)
+    - Future-date booking: start at 12:00 AM CST/CDT of that date
+
+    Uses UTC date comparison to avoid off-by-one: the frontend sends date-only
+    strings as UTC midnight (e.g. "2026-04-23T00:00:00Z"), which converts to the
+    previous evening in CDT and would wrongly be treated as a past date.
     """
-    now_utc = utcnow()
-    now_cst = now_utc.astimezone(CST)
-    checkin_cst = checkin.astimezone(CST) if checkin.tzinfo else checkin.replace(tzinfo=pytz.UTC).astimezone(CST)
+    now = utcnow()
+    checkin_utc_date = checkin.astimezone(timezone.utc).date()
+    today_utc = now.date()
 
-    if checkin_cst.date() == now_cst.date():
-        return now_utc
+    if checkin_utc_date <= today_utc:
+        return now
 
-    start_cst = checkin_cst.replace(hour=0, minute=0, second=0, microsecond=0)
-    return start_cst.astimezone(pytz.UTC)
+    naive_midnight = datetime(checkin_utc_date.year, checkin_utc_date.month, checkin_utc_date.day, 0, 0, 0)
+    return CST.localize(naive_midnight).astimezone(pytz.UTC)
 
 
 def _calculate_day_pass_end_time(start: datetime, num_days: int) -> datetime:
