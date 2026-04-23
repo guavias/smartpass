@@ -487,10 +487,12 @@ export default function BookPassPage() {
         email: trimmedEmail,
         phone: trimmedPhone,
         vehicle_info: "N/A",
+        access_start: safeStartDate.toISOString().slice(0, 10),
         num_days: days,
         num_adults: adults,
         num_children: children,
         payment_amount: pricing.total,
+        payment_tax: pricing.tax,
         payment_method: "card",
         payment_source_id: paymentSourceId,
         idempotency_key: idempotencyKey,
@@ -594,7 +596,7 @@ export default function BookPassPage() {
                       type="button"
                       className={styles.stepperBtn}
                       aria-label="Increase adults"
-                      onClick={() => setAdultsInput(String(parseQuantity(adultsInput) + 1))}
+                      onClick={() => setAdultsInput(String(Math.min(20, parseQuantity(adultsInput) + 1)))}
                     >
                       +
                     </button>
@@ -632,7 +634,7 @@ export default function BookPassPage() {
                       type="button"
                       className={styles.stepperBtn}
                       aria-label="Increase children"
-                      onClick={() => setChildrenInput(String(parseQuantity(childrenInput) + 1))}
+                      onClick={() => setChildrenInput(String(Math.min(20, parseQuantity(childrenInput) + 1)))}
                     >
                       +
                     </button>

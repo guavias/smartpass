@@ -1,9 +1,12 @@
 import os
 import secrets
+import io
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import StreamingResponse
 import logging
+import qrcode
 
 from database import (
     find_passes_by_email,
@@ -14,6 +17,7 @@ from database import (
     update_pass,
     verify_admin_credentials,
 )
+from rotating_qr import RotatingQRCodeService
 from schemas import (
     AccessOverride,
     AdminAccessLogItem,
@@ -23,10 +27,58 @@ from schemas import (
     AdminPassItem,
     AdminPassListResponse,
     AdminPassPatchRequest,
+    RotatingQRResponse,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+qr_service = RotatingQRCodeService()
+
+
+def _render_qr_png(payload: str) -> bytes:
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_H,
+        box_size=10,
+        border=2,
+    )
+    qr.add_data(payload)
+    qr.make(fit=True)
+
+    image = qr.make_image(fill_color="black", back_color="white")
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+async def _ensure_admin_static_qr_payload(doc: dict) -> tuple[dict, dict]:
+    existing_payload = doc.get("qr_static_payload")
+    if existing_payload:
+        payload = {
+            "qr_payload": existing_payload,
+            "generated_at": doc.get("qr_generated_at") or doc.get("created_at") or datetime.now(timezone.utc),
+            "valid_until": doc.get("qr_valid_until") or doc.get("access_end") or datetime.now(timezone.utc),
+            "refresh_seconds": 0,
+        }
+        return doc, payload
+
+    if not doc.get("token_seed"):
+        raise HTTPException(status_code=500, detail="Pass is missing QR seed")
+
+    payload = qr_service.create_payload(
+        pass_id=doc["id"],
+        token_seed=doc["token_seed"],
+        valid_until=doc.get("access_end"),
+    )
+    doc = await update_pass(
+        doc["id"],
+        {
+            "qr_static_payload": payload["qr_payload"],
+            "qr_generated_at": payload["generated_at"],
+            "qr_valid_until": payload["valid_until"],
+        },
+    ) or doc
+    return doc, payload
 
 
 def _normalize_utc(value: datetime) -> datetime:
@@ -39,6 +91,7 @@ def _to_admin_pass_item(doc: dict) -> AdminPassItem:
     return AdminPassItem(
         pass_id=doc.get("id", ""),
         reservation_id=doc.get("reservation_id"),
+        portal_token=doc.get("portal_token"),
         guest_name=doc.get("name", ""),
         email=doc.get("email", ""),
         phone=doc.get("phone"),
@@ -46,9 +99,14 @@ def _to_admin_pass_item(doc: dict) -> AdminPassItem:
         status=doc.get("status", "unknown"),
         start_at=doc.get("access_start"),
         end_at=doc.get("access_end"),
-        adults=doc.get("adults", 0),
-        children=doc.get("children", 0),
+        adults=doc.get("num_adults", doc.get("adults", 0)),
+        children=doc.get("num_children", doc.get("children", 0)),
+        num_days=doc.get("num_days"),
         vehicle_info=doc.get("vehicle_info"),
+        payment_amount=doc.get("payment_amount"),
+        payment_tax=doc.get("payment_tax"),
+        payment_reference=doc.get("payment_reference"),
+        payment_status=doc.get("payment_status"),
         created_at=doc.get("created_at"),
         updated_at=doc.get("updated_at"),
     )
@@ -154,7 +212,13 @@ async def patch_admin_pass(pass_id: str, payload: AdminPassPatchRequest):
         return _to_admin_pass_item(doc)
 
     if "status" in allowed_updates:
-        allowed_updates["status"] = str(allowed_updates["status"]).lower()
+        requested_status = str(allowed_updates["status"]).strip().lower()
+        if requested_status == "upcoming":
+            requested_status = "inactive"
+        if requested_status not in {"active", "inactive", "expired", "revoked"}:
+            raise HTTPException(status_code=400, detail="Invalid status. Use active, inactive, expired, or revoked.")
+        allowed_updates["status"] = requested_status
+        allowed_updates["status_override"] = None if requested_status == "active" else requested_status
 
     if "access_start" in allowed_updates:
         allowed_updates["access_start"] = _normalize_utc(allowed_updates["access_start"])
@@ -166,6 +230,58 @@ async def patch_admin_pass(pass_id: str, payload: AdminPassPatchRequest):
     if not updated:
         raise HTTPException(status_code=404, detail="Pass not found")
     return _to_admin_pass_item(updated)
+
+
+@router.get("/passes/{pass_id}/qr", response_model=RotatingQRResponse)
+async def get_admin_pass_qr(pass_id: str):
+    doc = await get_pass_by_id(pass_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Pass not found")
+
+    _, payload = await _ensure_admin_static_qr_payload(doc)
+    return RotatingQRResponse(**payload)
+
+
+@router.get("/passes/{pass_id}/qr-image")
+async def get_admin_pass_qr_image(pass_id: str):
+    doc = await get_pass_by_id(pass_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Pass not found")
+
+    _, payload = await _ensure_admin_static_qr_payload(doc)
+    png_bytes = _render_qr_png(payload["qr_payload"])
+
+    headers = {
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "X-QR-Valid-Until": payload["valid_until"].isoformat(),
+    }
+    return StreamingResponse(io.BytesIO(png_bytes), media_type="image/png", headers=headers)
+
+
+@router.post("/passes/{pass_id}/qr/regenerate", response_model=RotatingQRResponse)
+async def regenerate_admin_pass_qr(pass_id: str):
+    """Generate a new QR seed and payload for a pass, invalidating the old one."""
+    doc = await get_pass_by_id(pass_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Pass not found")
+
+    new_seed = qr_service.generate_seed()
+    payload = qr_service.create_payload(
+        pass_id=doc["id"],
+        token_seed=new_seed,
+        valid_until=doc.get("access_end"),
+    )
+    await update_pass(
+        doc["id"],
+        {
+            "token_seed": new_seed,
+            "qr_static_payload": payload["qr_payload"],
+            "qr_generated_at": payload["generated_at"],
+            "qr_valid_until": payload["valid_until"],
+        },
+    )
+    return RotatingQRResponse(**payload)
 
 
 @router.post("/override")

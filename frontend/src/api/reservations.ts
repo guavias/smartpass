@@ -5,10 +5,12 @@ export type CreateVisitorPassRequest = {
 	email: string;
 	phone: string;
 	vehicle_info: string;
+	access_start?: string;
 	num_days: number;
 	num_adults: number;
 	num_children: number;
 	payment_amount: number;
+	payment_tax?: number;
 	payment_method: string;
 	payment_source_id: string;
 	idempotency_key: string;
@@ -44,7 +46,11 @@ export type CreateGuestPassRequest = {
 	reservation_id: string;
 	check_in: string;
 	check_out: string;
+	num_adults?: number;
+	num_children?: number;
+	pets?: number;
 	payment_amount?: number;
+	payment_tax?: number;
 	payment_method?: string;
 	payment_source_id?: string;
 	idempotency_key?: string;
@@ -61,6 +67,9 @@ export type GuestPassResponse = {
 	phone?: string;
 	access_start: string;
 	access_end: string;
+	num_adults: number;
+	num_children: number;
+	pets: number;
 	status: string;
 	payment_status?: string;
 	payment_reference?: string;
@@ -75,7 +84,6 @@ export type PortalResponse = {
 	access_start: string;
 	access_end: string;
 	status: string;
-	qr_refresh_seconds: number;
 };
 
 export type PortalQrResponse = {

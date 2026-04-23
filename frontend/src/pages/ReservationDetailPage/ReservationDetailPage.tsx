@@ -47,17 +47,35 @@ function formatTimeLabel(isoDateTime: string) {
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
+function formatAccessDateTime(isoDateTime: string): string {
+  if (!isoDateTime) return "";
+  const d = parseUTCDateTime(isoDateTime);
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function qrStatusNote(status: string, start: string, end: string): string {
+  if (!start) return "";
+  if (status === "inactive") return `QR Code not active until ${formatAccessDateTime(start)}`;
+  if (status === "active") return `QR Code active from ${formatAccessDateTime(start)} to ${formatAccessDateTime(end)}`;
+  if (status === "expired") return `QR Code expired on ${formatAccessDateTime(end)}`;
+  if (status === "revoked") return "This pass has been revoked.";
+  return "";
+}
+
 export default function ReservationDetailPage() {
   const params = useParams<{ id: string }>();
   const location = useLocation();
   const state = (location.state as LookupState | null) ?? {};
   const [isQrOpen, setIsQrOpen] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(60);
-  const [refreshSeconds, setRefreshSeconds] = useState(60);
   const [qrPayload, setQrPayload] = useState("");
   const [error, setError] = useState("");
-  const [qrRefreshedAt, setQrRefreshedAt] = useState<string>("");
-  const [qrFlash, setQrFlash] = useState(false);
+  const [portalStatus, setPortalStatus] = useState<string>("loading");
 
   const [guestName, setGuestName] = useState("Loading...");
   const [portalToken, setPortalToken] = useState(state.portalToken ?? "");
@@ -71,12 +89,10 @@ export default function ReservationDetailPage() {
   const [startDateTime, setStartDateTime] = useState("");
   const [endDateTime, setEndDateTime] = useState("");
 
-  // For visitor passes: use actual guest counts from API
-  // For guest passes: don't show breakdown (we don't have pricing info)
-  const adults: number = passType === "visitor" ? numAdults : 0;
-  const children: number = passType === "visitor" ? numChildren : 0;
+  const adults: number = numAdults;
+  const children: number = numChildren;
   const days: number = numDays;
-  
+
   const pricing = {
     adultLine: passType === "visitor" ? paymentAmount : 0,
     childLine: 0,
@@ -125,6 +141,12 @@ export default function ReservationDetailPage() {
             setNumDays(pass.num_days);
             setNumAdults(pass.num_adults ?? 1);
             setNumChildren(pass.num_children ?? 0);
+          } else if (type === "guest") {
+            setNumAdults(pass.num_adults ?? 1);
+            setNumChildren(pass.num_children ?? 0);
+            if ("payment_amount" in pass && pass.payment_amount != null) {
+              setPaymentAmount(pass.payment_amount);
+            }
           }
         }
       } catch (err) {
@@ -143,6 +165,9 @@ export default function ReservationDetailPage() {
     };
   }, [passId, portalToken]);
 
+  const qrNote = qrStatusNote(portalStatus, startDateTime, endDateTime);
+  const qrBlocked = portalStatus === "expired" || portalStatus === "revoked";
+
   useEffect(() => {
     let isActive = true;
 
@@ -154,6 +179,7 @@ export default function ReservationDetailPage() {
         setGuestName(portal.holder_name);
         setStartDateTime(portal.access_start);
         setEndDateTime(portal.access_end);
+        setPortalStatus(portal.status);
       } catch {
         if (!isActive) return;
       }
@@ -169,18 +195,12 @@ export default function ReservationDetailPage() {
     if (!isQrOpen || !portalToken) return;
 
     let isActive = true;
-    let flashTimer: number | undefined;
     async function fetchQr() {
       try {
         const qr = await getPortalQr(portalToken);
         if (!isActive) return;
         setQrPayload(qr.qr_payload);
-        setRefreshSeconds(qr.refresh_seconds);
-        setSecondsLeft(qr.refresh_seconds);
-        setQrRefreshedAt(new Date().toLocaleTimeString());
-        setQrFlash(true);
         setError("");
-        flashTimer = window.setTimeout(() => setQrFlash(false), 900);
       } catch (err) {
         if (!isActive) return;
         if (err instanceof ApiError) {
@@ -194,45 +214,8 @@ export default function ReservationDetailPage() {
     void fetchQr();
     return () => {
       isActive = false;
-      if (flashTimer) window.clearTimeout(flashTimer);
     };
   }, [isQrOpen, portalToken]);
-
-  useEffect(() => {
-    if (!isQrOpen) return;
-
-    const interval = window.setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [isQrOpen, refreshSeconds]);
-
-  useEffect(() => {
-    if (!isQrOpen || !portalToken) return;
-    if (secondsLeft > 0) return;
-
-    async function refreshQr() {
-      try {
-        const qr = await getPortalQr(portalToken);
-        setQrPayload(qr.qr_payload);
-        setRefreshSeconds(qr.refresh_seconds);
-        setSecondsLeft(qr.refresh_seconds);
-        setQrRefreshedAt(new Date().toLocaleTimeString());
-        setQrFlash(true);
-        window.setTimeout(() => setQrFlash(false), 900);
-      } catch {
-        setError("Unable to refresh pass QR.");
-      }
-    }
-
-    void refreshQr();
-  }, [secondsLeft, isQrOpen, portalToken]);
 
   return (
     <div className={`${styles.page} chSharedHeroBg`}>
@@ -273,10 +256,16 @@ export default function ReservationDetailPage() {
             </div>
           </div>
 
-          <button className={styles.qrBtn} type="button" onClick={() => setIsQrOpen(true)}>
-            Access QR Code
-          </button>
-          <p className={styles.qrNote}>QR code refreshes every minute.</p>
+          {qrBlocked ? (
+            <p className={styles.qrNote}>{qrNote}</p>
+          ) : (
+            <>
+              <button className={styles.qrBtn} type="button" onClick={() => setIsQrOpen(true)}>
+                Access QR Code
+              </button>
+              {qrNote && <p className={styles.qrNote}>{qrNote}</p>}
+            </>
+          )}
 
           {passType === "visitor" && (
             <div className={styles.breakdown}>
@@ -306,6 +295,18 @@ export default function ReservationDetailPage() {
               </div>
             </div>
           )}
+
+          {passType === "guest" && paymentAmount > 0 && (
+            <div className={styles.breakdown}>
+              <div className={styles.breakdownSummary}>Payment</div>
+              <div className={styles.breakdownBox}>
+                <div className={styles.breakdownTotal}>
+                  <span>Total Paid</span>
+                  <span>{money(paymentAmount)}</span>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
 
@@ -314,19 +315,15 @@ export default function ReservationDetailPage() {
           <div className={styles.qrModalCard}>
             <h2 className={styles.qrTitle}>Crappie House Access</h2>
 
-            <div className={`${styles.qrFrame} ${qrFlash ? styles.qrFrameFlash : ""}`}>
-              {!qrPayload ? (
-                <p className={styles.qrHelp}>Loading QR code...</p>
-              ) : (
+            <div className={styles.qrFrame}>
+              {qrPayload ? (
                 <img src={qrImageUrl} alt="Day pass QR code" className={styles.qrImage} />
-              )}
+              ) : portalStatus === "active" || portalStatus === "loading" ? (
+                <p className={styles.qrHelp}>Loading QR code...</p>
+              ) : null}
             </div>
 
-            <p className={styles.qrTimer}>
-              QR refreshes in <span>{secondsLeft}s</span>
-            </p>
-
-            {qrRefreshedAt ? <p className={styles.qrRefreshBadge}>QR refreshed at {qrRefreshedAt}</p> : null}
+            {qrNote && <p className={styles.qrTimer}>{qrNote}</p>}
 
             <button className={styles.qrCloseBtn} type="button" onClick={() => setIsQrOpen(false)}>
               Close

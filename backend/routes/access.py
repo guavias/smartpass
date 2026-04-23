@@ -1,13 +1,12 @@
-import asyncio
 import io
 from datetime import timezone
 import logging
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 import qrcode
 
-from database import get_pass_by_id, get_pass_by_portal_token, log_access_event, update_pass, utcnow
+from database import get_pass_by_portal_token, get_pass_by_qr_payload, log_access_event, update_pass, utcnow
 from rotating_qr import RotatingQRCodeService
 from schemas import PortalAccessResponse, RotatingQRResponse, ValidateQRRequest, ValidateQRResponse
 
@@ -35,7 +34,10 @@ def _render_qr_png(payload: str) -> bytes:
 
 def _status_for_doc(doc: dict) -> str:
     now = utcnow()
-    if doc.get("status") == "revoked":
+    status_override = str(doc.get("status_override", "")).lower()
+    if status_override in {"revoked", "inactive", "expired"}:
+        return status_override
+    if str(doc.get("status", "")).lower() == "revoked":
         return "revoked"
     access_start = doc.get("access_start")
     if access_start and access_start.tzinfo is None:
@@ -56,9 +58,36 @@ async def _resolve_active_doc_by_portal(portal_token: str) -> dict:
         raise HTTPException(status_code=404, detail="Portal not found")
 
     status = _status_for_doc(doc)
-    if status == "expired" and doc.get("status") != "expired":
-        doc = await update_pass(doc["id"], {"status": "expired"}) or doc
+    if not doc.get("status_override") and status != doc.get("status"):
+        doc = await update_pass(doc["id"], {"status": status}) or doc
     return doc
+
+
+async def _ensure_static_qr_payload(doc: dict) -> tuple[dict, dict]:
+    existing_payload = doc.get("qr_static_payload")
+    if existing_payload:
+        payload = {
+            "qr_payload": existing_payload,
+            "generated_at": doc.get("qr_generated_at") or doc.get("created_at") or utcnow(),
+            "valid_until": doc.get("qr_valid_until") or doc.get("access_end") or utcnow(),
+            "refresh_seconds": 0,
+        }
+        return doc, payload
+
+    payload = qr_service.create_payload(
+        pass_id=doc["id"],
+        token_seed=doc["token_seed"],
+        valid_until=doc.get("access_end"),
+    )
+    doc = await update_pass(
+        doc["id"],
+        {
+            "qr_static_payload": payload["qr_payload"],
+            "qr_generated_at": payload["generated_at"],
+            "qr_valid_until": payload["valid_until"],
+        },
+    ) or doc
+    return doc, payload
 
 
 @router.get("/portal/{portal_token}", response_model=PortalAccessResponse)
@@ -79,138 +108,43 @@ async def get_portal(portal_token: str):
 
 
 @router.get("/portal/{portal_token}/qr", response_model=RotatingQRResponse)
-async def get_rotating_qr(portal_token: str):
+async def get_portal_qr(portal_token: str):
     doc = await _resolve_active_doc_by_portal(portal_token)
     status = _status_for_doc(doc)
     if status != "active":
         raise HTTPException(status_code=403, detail=f"Portal is {status}")
 
-    payload = qr_service.create_payload(pass_id=doc["id"], token_seed=doc["token_seed"])
-    await update_pass(doc["id"], {
-        "last_rotated_at": payload["generated_at"],
-        "last_valid_minute": payload["current_minute"]
-    })
+    doc, payload = await _ensure_static_qr_payload(doc)
     return RotatingQRResponse(**payload)
 
 
 @router.get("/portal/{portal_token}/qr-image")
-async def get_rotating_qr_image(portal_token: str):
+async def get_portal_qr_image(portal_token: str):
     doc = await _resolve_active_doc_by_portal(portal_token)
     status = _status_for_doc(doc)
     if status != "active":
         raise HTTPException(status_code=403, detail=f"Portal is {status}")
 
-    payload = qr_service.create_payload(pass_id=doc["id"], token_seed=doc["token_seed"])
-    await update_pass(doc["id"], {
-        "last_rotated_at": payload["generated_at"],
-        "last_valid_minute": payload["current_minute"]
-    })
+    doc, payload = await _ensure_static_qr_payload(doc)
 
     png_bytes = _render_qr_png(payload["qr_payload"])
     headers = {
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
         "Pragma": "no-cache",
         "X-QR-Valid-Until": payload["valid_until"].isoformat(),
-        "X-QR-Refresh-Seconds": str(payload["refresh_seconds"]),
     }
     return StreamingResponse(io.BytesIO(png_bytes), media_type="image/png", headers=headers)
-
-
-@router.websocket("/portal/{portal_token}/ws")
-async def stream_rotating_qr(portal_token: str, websocket: WebSocket):
-    await websocket.accept()
-    last_payload = None
-
-    try:
-        while True:
-            doc = await _resolve_active_doc_by_portal(portal_token)
-            status = _status_for_doc(doc)
-
-            if status != "active":
-                await websocket.send_json({"type": "error", "status": status, "detail": f"Portal is {status}"})
-                await websocket.close(code=1008, reason=f"Portal is {status}")
-                break
-
-            payload = qr_service.create_payload(pass_id=doc["id"], token_seed=doc["token_seed"])
-            if payload["qr_payload"] != last_payload:
-                last_payload = payload["qr_payload"]
-                await update_pass(doc["id"], {
-                    "last_rotated_at": payload["generated_at"],
-                    "last_valid_minute": payload["current_minute"]
-                })
-                await websocket.send_json(
-                    {
-                        "type": "qr_update",
-                        "pass_id": doc["id"],
-                        "qr_payload": payload["qr_payload"],
-                        "generated_at": payload["generated_at"].isoformat(),
-                        "valid_until": payload["valid_until"].isoformat(),
-                        "refresh_seconds": payload["refresh_seconds"],
-                    }
-                )
-
-            now = utcnow()
-            wait_seconds = max(1, int((payload["valid_until"] - now).total_seconds()))
-            await asyncio.sleep(min(wait_seconds, 15))
-    except WebSocketDisconnect:
-        logger.info("WebSocket disconnected for portal token %s", portal_token)
-    except Exception as exc:
-        logger.error("WebSocket stream error for portal token %s: %s", portal_token, exc)
-        try:
-            await websocket.close(code=1011, reason="WebSocket stream error")
-        except Exception:
-            pass
-
-
-@router.get("/check-minute/{pass_id}")
-async def check_current_minute(pass_id: str):
-    """
-    Hardware endpoint to check the current valid minute for a pass.
-    Useful for validating QR codes without parsing them.
-    
-    Returns the last valid minute stored in DB so hardware can verify
-    if a scanned QR's minute (m) is current or expired.
-    """
-    doc = await get_pass_by_id(pass_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Pass not found")
-    
-    status = _status_for_doc(doc)
-    current_minute = qr_service.get_current_minute()
-    last_valid_minute = doc.get("last_valid_minute", current_minute)
-    
-    return {
-        "pass_id": doc["id"],
-        "status": status,
-        "current_minute": current_minute,
-        "last_valid_minute": last_valid_minute,
-        "minute_match": current_minute == last_valid_minute or abs(current_minute - last_valid_minute) <= 1,
-    }
 
 
 @router.post("/validate", response_model=ValidateQRResponse)
 async def validate_qr(payload: ValidateQRRequest):
     try:
-        decoded = qr_service.decode_payload(payload.qr_payload)
-        pass_id = decoded.get("p")
-        if not pass_id:
-            result = ValidateQRResponse(status="invalid")
-            await log_access_event(
-                {
-                    "pass_id": None,
-                    "qr_scanned": payload.qr_payload,
-                    "validation_result": result.status,
-                    "gate_location": payload.gate_location,
-                }
-            )
-            return result
-
-        doc = await get_pass_by_id(pass_id)
+        doc = await get_pass_by_qr_payload(payload.qr_payload)
         if not doc:
             result = ValidateQRResponse(status="invalid")
             await log_access_event(
                 {
-                    "pass_id": pass_id,
+                    "pass_id": None,
                     "qr_scanned": payload.qr_payload,
                     "validation_result": result.status,
                     "gate_location": payload.gate_location,
@@ -228,15 +162,7 @@ async def validate_qr(payload: ValidateQRRequest):
         elif status == "inactive":
             result = ValidateQRResponse(status="invalid", pass_id=doc["id"], user_type=doc["user_type"], access_end=doc["access_end"])
         else:
-            is_valid = qr_service.validate_payload(
-                qr_payload=payload.qr_payload,
-                pass_id=doc["id"],
-                token_seed=doc["token_seed"],
-            )
-            if not is_valid:
-                result = ValidateQRResponse(status="invalid", pass_id=doc["id"], user_type=doc["user_type"], access_end=doc["access_end"])
-            else:
-                result = ValidateQRResponse(status="approved", pass_id=doc["id"], user_type=doc["user_type"], access_end=doc["access_end"])
+            result = ValidateQRResponse(status="approved", pass_id=doc["id"], user_type=doc["user_type"], access_end=doc["access_end"])
 
         await log_access_event(
             {

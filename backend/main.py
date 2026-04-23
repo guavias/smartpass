@@ -24,10 +24,13 @@ async def startup_event() -> None:
 async def shutdown_event() -> None:
     await close_mongo_connection()
 
-# Mount static files for QR codes
+# Mount static files
 static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
     app.mount("/qr", StaticFiles(directory=str(static_dir / "qr-codes")), name="qr-codes")
+    images_dir = static_dir / "images"
+    if images_dir.exists():
+        app.mount("/images", StaticFiles(directory=str(images_dir)), name="images")
 
 app.include_router(visitor.router, prefix="/api/v1/visitors", tags=["Visitors"])
 app.include_router(guest.router, prefix="/api/v1/guests", tags=["Guests"])

@@ -50,9 +50,21 @@ export type AdminPass = {
   end_at: string;
   adults: number;
   children: number;
+  num_days?: number;
   vehicle_info?: string;
+  payment_amount?: number;
+  payment_tax?: number;
+  payment_reference?: string;
+  payment_status?: string;
   created_at: string;
   updated_at?: string;
+};
+
+export type AdminPassQrResponse = {
+  qr_payload: string;
+  generated_at: string;
+  valid_until: string;
+  refresh_seconds: number;
 };
 
 type AdminPassListApiResponse = {
@@ -164,11 +176,22 @@ export async function patchAdminPass(passId: string, payload: {
   status?: string;
   access_start?: string;
   access_end?: string;
+  email?: string;
   phone?: string;
   vehicle_info?: string;
 }): Promise<AdminPass> {
   return apiFetch<AdminPass>(`/api/v1/admin/passes/${encodeURIComponent(passId)}`, {
     method: "PATCH",
     body: JSON.stringify(payload),
+  });
+}
+
+export async function getAdminPassQr(passId: string): Promise<AdminPassQrResponse> {
+  return apiFetch<AdminPassQrResponse>(`/api/v1/admin/passes/${encodeURIComponent(passId)}/qr`);
+}
+
+export async function regenerateAdminPassQr(passId: string): Promise<AdminPassQrResponse> {
+  return apiFetch<AdminPassQrResponse>(`/api/v1/admin/passes/${encodeURIComponent(passId)}/qr/regenerate`, {
+    method: "POST",
   });
 }

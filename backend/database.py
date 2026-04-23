@@ -69,6 +69,7 @@ async def _ensure_indexes() -> None:
 
 	await db.passes.create_index([("id", ASCENDING)], unique=True)
 	await db.passes.create_index([("portal_token", ASCENDING)], unique=True)
+	await db.passes.create_index([("qr_static_payload", ASCENDING)])
 	await db.passes.create_index([("email", ASCENDING), ("reservation_id", ASCENDING)])
 	await db.passes.create_index([("access_start", ASCENDING), ("access_end", ASCENDING)])
 	await db.passes.create_index([("status", ASCENDING), ("user_type", ASCENDING)])
@@ -202,6 +203,12 @@ async def get_pass_by_portal_token(portal_token: str) -> Optional[dict[str, Any]
 	return _normalize(doc)
 
 
+async def get_pass_by_qr_payload(qr_payload: str) -> Optional[dict[str, Any]]:
+	db = get_database()
+	doc = await db.passes.find_one({"qr_static_payload": qr_payload})
+	return _normalize(doc)
+
+
 async def get_guest_pass_by_reservation(email: str, reservation_id: str) -> Optional[dict[str, Any]]:
 	db = get_database()
 	doc = await db.passes.find_one(
@@ -215,20 +222,6 @@ async def get_guest_pass_by_reservation(email: str, reservation_id: str) -> Opti
 	)
 	return _normalize(doc)
 
-
-async def get_day_pass_by_reservation(email: str, reservation_id: str) -> Optional[dict[str, Any]]:
-	"""Find companion day pass for overnight reservation (for Crappie House access)."""
-	db = get_database()
-	doc = await db.passes.find_one(
-		{
-			"user_type": "visitor",
-			"email": email.lower(),
-			"reservation_id": reservation_id,
-			"status": {"$in": ["active", "expired"]},
-		},
-		sort=[("created_at", DESCENDING)],
-	)
-	return _normalize(doc)
 
 
 async def find_passes_by_email(email: str, limit: int = 10) -> list[dict[str, Any]]:

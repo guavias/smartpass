@@ -1,10 +1,10 @@
 import os
+import base64
 import logging
-from typing import Optional
+from pathlib import Path
 from datetime import datetime
 import pytz
 import resend
-from schemas import QRCodeEmailNotification, AccessGrantedEmail, AccessDeniedEmail, ExpirationWarningEmail
 from qr_generator import QRCodeGenerator
 
 
@@ -12,6 +12,17 @@ logger = logging.getLogger(__name__)
 
 # Central timezone for email display
 CST = pytz.timezone('America/Chicago')
+
+# Embed logo as base64 data URI so it displays in email without needing a public URL
+def _load_logo_data_uri() -> str:
+    logo_path = Path(__file__).parent / "static" / "images" / "hilineLogo.png"
+    try:
+        data = base64.b64encode(logo_path.read_bytes()).decode()
+        return f"data:image/png;base64,{data}"
+    except Exception:
+        return ""
+
+_LOGO_DATA_URI = _load_logo_data_uri()
 
 # Get base URL from environment at runtime (after .env is loaded)
 def _get_base_url() -> str:
@@ -54,51 +65,88 @@ class EmailService:
         access_start: datetime,
         access_end: datetime,
     ) -> dict:
-        """Send portal access link where rotating QR is displayed."""
+        """Send portal access link to guest so they can view their QR code."""
         if not _init_resend():
             logger.error("Resend API key not configured. Check RESEND_API_KEY.")
             return {"success": False, "error": "Email service not configured"}
 
         try:
-            window_label = "Day Pass" if user_type == "visitor" else "Reservation Access"
-            # Convert times to CST for display
+            pass_label = "Day Pass" if user_type == "visitor" else "Crappie House Access Pass"
+            subject = "Your Hi-Line Resort Day Pass" if user_type == "visitor" else "Your Hi-Line Resort Access Pass"
             start_cst = _to_cst(access_start)
             end_cst = _to_cst(access_end)
-            start_formatted = start_cst.strftime("%I:%M %p on %B %d, %Y")
-            end_formatted = end_cst.strftime("%I:%M %p on %B %d, %Y")
+            start_formatted = start_cst.strftime("%B %d, %Y at %I:%M %p CDT")
+            end_formatted = end_cst.strftime("%B %d, %Y at %I:%M %p CDT")
+            html_body = f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#f4f4f4;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f4;padding:24px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:10px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
-            html_body = f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h2 style="color: #1f4b99;">Smart Pass Portal Link</h2>
-                    <p>Hi {recipient_name},</p>
-                    <p>Your {window_label} is ready. Use the secure portal below to access your rotating QR code.</p>
+        <!-- Header -->
+        <tr><td align="center" style="background:#ffffff;padding:32px 40px 16px;">
+          <img src="{_LOGO_DATA_URI}" alt="Hi-Line Resort" width="160" style="display:block;max-width:160px;">
+        </td></tr>
 
-                    <p style="margin: 25px 0;">
-                        <a href="{portal_url}" style="background: #1f4b99; color: white; text-decoration: none; padding: 12px 18px; border-radius: 6px; display: inline-block;">
-                            Open QR Portal
-                        </a>
-                    </p>
+        <!-- Title -->
+        <tr><td align="center" style="padding:8px 40px 24px;">
+          <h1 style="margin:0;font-size:22px;color:#1a1a1a;">Your {pass_label} is Ready</h1>
+        </td></tr>
 
-                    <div style="background: #eef5ff; border-left: 4px solid #1f4b99; padding: 12px;">
-                        <p style="margin: 0;"><strong>Access start:</strong> {start_formatted}</p>
-                        <p style="margin: 0;"><strong>Access end:</strong> {end_formatted}</p>
-                        <p style="margin: 6px 0 0 0;">QR rotates every 60 seconds while your access window is active.</p>
-                    </div>
-                </body>
-            </html>
-            """
+        <!-- Body -->
+        <tr><td style="padding:0 40px 24px;">
+          <p style="margin:0 0 16px;color:#333;font-size:15px;">Hi {recipient_name},</p>
+          <p style="margin:0 0 24px;color:#333;font-size:15px;">
+            Your Crappie House access pass has been confirmed. Use the button below to view your QR code — you'll need it to enter the Crappie House.
+          </p>
+
+          <!-- CTA Button -->
+          <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-bottom:28px;">
+            <a href="{portal_url}"
+               style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:16px;font-weight:bold;padding:14px 32px;border-radius:8px;">
+              View My Pass &amp; QR Code
+            </a>
+          </td></tr></table>
+
+          <!-- Access Window -->
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f7ff;border-left:4px solid #2563eb;border-radius:4px;">
+            <tr><td style="padding:14px 16px;">
+              <p style="margin:0 0 6px;color:#1e3a8a;font-size:14px;"><strong>Access Start:</strong> {start_formatted}</p>
+              <p style="margin:0;color:#1e3a8a;font-size:14px;"><strong>Access End:</strong> {end_formatted}</p>
+            </td></tr>
+          </table>
+
+          <p style="margin:20px 0 0;color:#666;font-size:13px;">
+            Your QR code is only visible while your pass is active. Present it to the scanner at the Crappie House dock.
+          </p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#f9f9f9;padding:20px 40px;border-top:1px solid #e5e5e5;">
+          <p style="margin:0;color:#999;font-size:12px;text-align:center;">
+            Hi-Line Resort &bull; Crappie House Access System<br>
+            Questions? Email <a href="mailto:info@hi-line-resort.com" style="color:#2563eb;">info@hi-line-resort.com</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>"""
 
             response = resend.Emails.send(
                 {
-                    "from": "Smart Pass <onboarding@resend.dev>",
+                    "from": "Hi-Line Resort <onboarding@resend.dev>",
                     "to": [recipient_email],
-                    "subject": "Your SmartPass Portal Link",
+                    "subject": subject,
                     "html": html_body,
                 }
             )
 
-            logger.info(f"Portal link email sent to {recipient_email}")
+            logger.info(f"Portal access email sent to {recipient_email}")
             return {"success": True, "email_id": response.get("id")}
         except Exception as e:
             logger.error(f"Failed to send portal email to {recipient_email}: {str(e)}")

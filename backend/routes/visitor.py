@@ -26,6 +26,23 @@ def _to_utc(value: datetime) -> datetime:
     return value.astimezone(timezone.utc)
 
 
+def _normalize_checkin_to_start_of_day(checkin: datetime) -> datetime:
+    """
+    Normalize check-in time:
+    - Same-day booking (CST): use now for immediate access
+    - Future date: set to 12:00:00 AM CST of that date
+    """
+    now_utc = utcnow()
+    now_cst = now_utc.astimezone(CST)
+    checkin_cst = checkin.astimezone(CST) if checkin.tzinfo else checkin.replace(tzinfo=pytz.UTC).astimezone(CST)
+
+    if checkin_cst.date() == now_cst.date():
+        return now_utc
+
+    start_cst = checkin_cst.replace(hour=0, minute=0, second=0, microsecond=0)
+    return start_cst.astimezone(pytz.UTC)
+
+
 def _calculate_day_pass_end_time(start: datetime, num_days: int) -> datetime:
     """
     Calculate end time for day passes in CST timezone.
@@ -53,8 +70,10 @@ def _portal_base_url() -> str:
 def _calculate_pass_status(doc: dict) -> str:
     """Calculate the current status of a pass based on access windows and stored status"""
     now = utcnow()
-    # If revoked, always revoked
-    if doc.get("status") == "revoked":
+    status_override = str(doc.get("status_override", "")).lower()
+    if status_override in {"revoked", "inactive", "expired"}:
+        return status_override
+    if str(doc.get("status", "")).lower() == "revoked":
         return "revoked"
     # Check if not yet active
     access_start = doc.get("access_start")
@@ -113,7 +132,8 @@ async def create_visitor_pass(visitor: VisitorCreate):
         token_seed = qr_service.generate_seed()
 
         created_at = utcnow()
-        access_start = _to_utc(visitor.access_start) if visitor.access_start else created_at
+        raw_start = _to_utc(visitor.access_start) if visitor.access_start else created_at
+        access_start = _normalize_checkin_to_start_of_day(raw_start)
         access_end = _calculate_day_pass_end_time(access_start, visitor.num_days)
 
         payment_status = "not_required"
@@ -128,6 +148,12 @@ async def create_visitor_pass(visitor: VisitorCreate):
                 raise HTTPException(status_code=402, detail=payment_result.get("error", "Payment failed"))
             payment_status = payment_result.get("status", "completed")
             payment_reference = payment_result.get("transaction_id")
+
+        qr_payload = qr_service.create_payload(
+            pass_id=visitor_id,
+            token_seed=token_seed,
+            valid_until=access_end,
+        )
 
         pass_doc = {
             "id": visitor_id,
@@ -147,10 +173,13 @@ async def create_visitor_pass(visitor: VisitorCreate):
             "payment_reference": payment_reference,
             "payment_method": visitor.payment_method,
             "payment_amount": visitor.payment_amount,
+            "payment_tax": visitor.payment_tax,
             "num_days": visitor.num_days,
             "num_adults": visitor.num_adults,
             "num_children": visitor.num_children,
-            "qr_refresh_seconds": 60,
+            "qr_static_payload": qr_payload["qr_payload"],
+            "qr_generated_at": qr_payload["generated_at"],
+            "qr_valid_until": qr_payload["valid_until"],
         }
         created = await create_pass(pass_doc)
 

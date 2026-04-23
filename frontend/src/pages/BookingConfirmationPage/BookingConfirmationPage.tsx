@@ -43,18 +43,41 @@ function maskPhone(phone: string) {
   const last4 = digits.slice(-4);
   return `(***) ***-${last4}`;
 }
+function formatAccessDateTime(iso: string): string {
+  if (!iso) return "";
+  let clean = iso.trim();
+  if (!clean.includes("Z") && !clean.includes("+") && !clean.includes("-", 10)) {
+    clean += "Z";
+  }
+  const d = new Date(clean);
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function qrStatusNote(status: string, start: string, end: string): string {
+  if (!start) return "";
+  if (status === "inactive") return `QR Code not active until ${formatAccessDateTime(start)}`;
+  if (status === "active") return `QR Code active from ${formatAccessDateTime(start)} to ${formatAccessDateTime(end)}`;
+  if (status === "expired") return `QR Code expired on ${formatAccessDateTime(end)}`;
+  if (status === "revoked") return "This pass has been revoked.";
+  return "";
+}
+
 export default function BookingConfirmationPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as ConfirmationState | null;
   const [isQrOpen, setIsQrOpen] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(60);
   const [qrPayload, setQrPayload] = useState("");
-  const [refreshSeconds, setRefreshSeconds] = useState(60);
   const [portalStatus, setPortalStatus] = useState<string>("loading");
+  const [accessStart, setAccessStart] = useState<string>("");
+  const [accessEnd, setAccessEnd] = useState<string>("");
   const [qrError, setQrError] = useState<string>("");
-  const [qrRefreshedAtMs, setQrRefreshedAtMs] = useState<number | null>(null);
-  const [qrFlash, setQrFlash] = useState(false);
 
   //mock info
   const baseData: ConfirmationState = state ?? {
@@ -95,12 +118,16 @@ export default function BookingConfirmationPage() {
     return `/api/v1/access/portal/${encodeURIComponent(data.portalToken)}/qr-image?payload=${encodeURIComponent(qrPayload)}`;
   }, [data.portalToken, qrPayload]);
 
+  const qrNote = qrStatusNote(portalStatus, accessStart, accessEnd);
+
   useEffect(() => {
     async function loadPortal() {
       if (!data.portalToken) return;
       try {
         const portal = await getPortal(data.portalToken);
         setPortalStatus(portal.status);
+        setAccessStart(portal.access_start);
+        setAccessEnd(portal.access_end);
       } catch {
         setPortalStatus("unavailable");
       }
@@ -111,21 +138,14 @@ export default function BookingConfirmationPage() {
 
   useEffect(() => {
     let isActive = true;
-    let flashTimer: number | undefined;
 
-    async function refreshQr() {
+    async function loadQr() {
       if (!data.portalToken || !isQrOpen) return;
       try {
         const qr = await getPortalQr(data.portalToken);
         if (!isActive) return;
-        const refreshedAt = Date.now();
         setQrPayload(qr.qr_payload);
-        setRefreshSeconds(qr.refresh_seconds);
-        setSecondsLeft(qr.refresh_seconds);
-        setQrRefreshedAtMs(refreshedAt);
-        setQrFlash(true);
         setQrError("");
-        flashTimer = window.setTimeout(() => setQrFlash(false), 900);
       } catch (error) {
         if (!isActive) return;
         if (error instanceof ApiError) {
@@ -136,54 +156,11 @@ export default function BookingConfirmationPage() {
       }
     }
 
-    void refreshQr();
+    void loadQr();
     return () => {
       isActive = false;
-      if (flashTimer) window.clearTimeout(flashTimer);
     };
   }, [data.portalToken, isQrOpen]);
-
-  useEffect(() => {
-    if (!isQrOpen) return;
-
-    const interval = window.setInterval(() => {
-      setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [isQrOpen, refreshSeconds]);
-
-  useEffect(() => {
-    if (!isQrOpen || !data.portalToken) return;
-    if (secondsLeft > 0) return;
-
-    async function refreshQr() {
-      try {
-        const qr = await getPortalQr(data.portalToken);
-        const refreshedAt = Date.now();
-        setQrPayload(qr.qr_payload);
-        setRefreshSeconds(qr.refresh_seconds);
-        setSecondsLeft(qr.refresh_seconds);
-        setQrRefreshedAtMs(refreshedAt);
-        setQrFlash(true);
-        setQrError("");
-        window.setTimeout(() => setQrFlash(false), 900);
-      } catch (error) {
-        if (error instanceof ApiError) {
-          setQrError(error.message);
-        } else {
-          setQrError("Unable to refresh QR code.");
-        }
-      }
-    }
-
-    void refreshQr();
-  }, [secondsLeft, isQrOpen, data.portalToken]);
 
   return (
     <div className={styles.page}>
@@ -282,9 +259,8 @@ export default function BookingConfirmationPage() {
             <div className={styles.passSecurityBox}>
               <div className={styles.passSecurityTitle}>Pass Security</div>
               <ul className={styles.passSecurityList}>
-                <li>QR code appears only when the pass is active.</li>
-                <li>QR code refreshes automatically every minute.</li>
-                <li>Current portal status: {portalStatus}</li>
+                <li>QR code only appears when your pass is active.</li>
+                {qrNote && <li>{qrNote}</li>}
               </ul>
             </div>
 
@@ -303,27 +279,17 @@ export default function BookingConfirmationPage() {
             <div className={styles.qrModalCard}>
               <h2 className={styles.qrTitle}>Crappie House Access</h2>
 
-              <div className={`${styles.qrFrame} ${qrFlash ? styles.qrFrameFlash : ""}`}>
+              <div className={styles.qrFrame}>
                 {qrError ? (
                   <p className={styles.qrHelp}>{qrError}</p>
-                ) : !qrPayload ? (
-                  <p className={styles.qrHelp}>Loading QR code...</p>
-                ) : (
+                ) : qrPayload ? (
                   <img src={qrImageUrl} alt="Day pass QR code" className={styles.qrImage} />
-                )}
+                ) : portalStatus === "active" || portalStatus === "loading" ? (
+                  <p className={styles.qrHelp}>Loading QR code...</p>
+                ) : null}
               </div>
 
-              <p className={styles.qrTimer}>
-                QR refreshes in <span>{secondsLeft}s</span>
-              </p>
-
-              {qrRefreshedAtMs ? (
-                <p className={styles.qrRefreshBadge}>QR refreshed at {new Date(qrRefreshedAtMs).toLocaleTimeString()}</p>
-              ) : null}
-
-              {qrRefreshedAtMs ? (
-                <p className={styles.qrHelp}>Valid until {new Date(qrRefreshedAtMs + refreshSeconds * 1000).toLocaleTimeString()}</p>
-              ) : null}
+              {qrNote && <p className={styles.qrTimer}>{qrNote}</p>}
 
               <p className={styles.qrHelp}>
                 Hold the QR code up to the scanner at the Crappie House dock.

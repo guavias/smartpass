@@ -14,10 +14,11 @@ class VisitorBase(BaseModel):
 
 class VisitorCreate(VisitorBase):
     payment_amount: float
+    payment_tax: Optional[float] = None
     payment_method: str = "card"  # e.g., "card", "cash"
     num_days: int = Field(default=1, ge=1, le=30)
-    num_adults: int = Field(default=1, ge=1, le=10)
-    num_children: int = Field(default=0, ge=0, le=10)
+    num_adults: int = Field(default=1, ge=1, le=20)
+    num_children: int = Field(default=0, ge=0, le=20)
     access_start: Optional[datetime] = None
     payment_source_id: Optional[str] = None
     idempotency_key: Optional[str] = None
@@ -52,7 +53,11 @@ class GuestBase(BaseModel):
 class GuestCreate(GuestBase):
     check_in: datetime
     check_out: datetime
+    num_adults: int = Field(default=1, ge=1, le=20)
+    num_children: int = Field(default=0, ge=0, le=20)
+    pets: int = Field(default=0, ge=0, le=10)
     payment_amount: Optional[float] = None
+    payment_tax: Optional[float] = None
     payment_method: str = "card"  # e.g., "card", "not_required"
     payment_source_id: Optional[str] = None
     idempotency_key: Optional[str] = None
@@ -62,14 +67,16 @@ class GuestResponse(GuestBase):
     id: str
     portal_token: str
     portal_url: str
-    pass_type: Literal["guest", "visitor"] = "guest"  # Can be guest (overnight) or visitor (day pass included with overnight)
+    pass_type: Literal["guest"] = "guest"
     created_at: datetime
     access_start: datetime
     access_end: datetime
+    num_adults: int = 1
+    num_children: int = 0
+    pets: int = 0
     payment_status: str = "not_required"
     payment_reference: Optional[str] = None
     payment_amount: Optional[float] = None
-    qr_refresh_seconds: int = 60
     access_granted: bool = False
     status: str
 
@@ -226,6 +233,7 @@ class AdminLoginResponse(BaseModel):
 class AdminPassItem(BaseModel):
     pass_id: str
     reservation_id: Optional[str] = None
+    portal_token: Optional[str] = None
     guest_name: str
     email: str
     phone: Optional[str] = None
@@ -235,7 +243,12 @@ class AdminPassItem(BaseModel):
     end_at: datetime
     adults: int = 0
     children: int = 0
+    num_days: Optional[int] = None
     vehicle_info: Optional[str] = None
+    payment_amount: Optional[float] = None
+    payment_tax: Optional[float] = None
+    payment_reference: Optional[str] = None
+    payment_status: Optional[str] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -251,6 +264,7 @@ class AdminPassPatchRequest(BaseModel):
     status: Optional[str] = None
     access_start: Optional[datetime] = None
     access_end: Optional[datetime] = None
+    email: Optional[str] = None
     phone: Optional[str] = None
     vehicle_info: Optional[str] = None
 

@@ -8,13 +8,15 @@ import clipboardIcon from "../../../assets/clipboard.png";
 import {
   clearAdminSession,
   getAdminAccessLogs,
+  getAdminPassQr,
   getAdminPasses,
   getAdminSession,
   isAdminSessionValid,
   patchAdminPass,
+  regenerateAdminPassQr,
 } from "../../../api/admin";
 import { ApiError } from "../../../api/client";
-import { createGuestPass, createVisitorPass, getGuestPass, getPortalQr, getVisitorPass } from "../../../api/reservations";
+import { createGuestPass, createVisitorPass } from "../../../api/reservations";
 
 type PassType = "Visitor" | "Overnight Guest";
 type Status = "Active" | "Expired" | "Upcoming" | "Revoked";
@@ -34,13 +36,13 @@ type PassRecord = {
   endAt: string;
   adults: number;
   children: number;
+  numDays?: number;
   email: string;
   phone: string;
   preferredContact: ContactMethod;
-  orderTotal: number;
-  tax: number;
-  paymentMethod: string;
-  last4: string;
+  orderTotal: number | null;
+  tax: number | null;
+  paymentStatus: string;
   squarePaymentId: string;
 };
 
@@ -72,6 +74,7 @@ type ManualCreateDraft = {
   preferredContact: ManualContactMethod;
   adults: number;
   children: number;
+  pets: number;
   startAt: string;
   endAt: string;
   reservationId: string;
@@ -181,6 +184,7 @@ function buildDefaultManualDraft(): ManualCreateDraft {
     preferredContact: "Email",
     adults: 1,
     children: 0,
+    pets: 0,
     startAt: toInput(now),
     endAt: toInput(end),
     reservationId: "",
@@ -210,6 +214,7 @@ export default function Dashboard() {
   const selectedPass = useMemo(() => passes.find((p) => p.passId === selectedPassId) ?? null, [passes, selectedPassId]);
 
   const [draft, setDraft] = useState<{
+    status: Status;
     email: string;
     phone: string;
     preferredContact: ContactMethod;
@@ -222,10 +227,9 @@ export default function Dashboard() {
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
   const [qrTargetPass, setQrTargetPass] = useState<PassRecord | null>(null);
   const [qrPayload, setQrPayload] = useState("");
-  const [qrSecondsLeft, setQrSecondsLeft] = useState(60);
-  const [qrRefreshSeconds, setQrRefreshSeconds] = useState(60);
   const [qrError, setQrError] = useState("");
-  const [qrRefreshedAt, setQrRefreshedAt] = useState("");
+  const [qrReloadConfirming, setQrReloadConfirming] = useState(false);
+  const [isRegeneratingQr, setIsRegeneratingQr] = useState(false);
 
   const [isManualCreateOpen, setIsManualCreateOpen] = useState(false);
   const [manualDraft, setManualDraft] = useState<ManualCreateDraft>(() => buildDefaultManualDraft());
@@ -294,9 +298,7 @@ export default function Dashboard() {
   const qrImageUrl = useMemo(() => {
     if (!qrTargetPass) return "";
     const cacheBust = `${Date.now()}`;
-    return `/api/v1/access/portal/${encodeURIComponent(qrTargetPass.portalToken)}/qr-image?payload=${encodeURIComponent(
-      qrPayload
-    )}&t=${cacheBust}`;
+    return `/api/v1/admin/passes/${encodeURIComponent(qrTargetPass.passId)}/qr-image?payload=${encodeURIComponent(qrPayload)}&t=${cacheBust}`;
   }, [qrTargetPass, qrPayload]);
 
   const loadDashboardData = useCallback(async () => {
@@ -320,11 +322,11 @@ export default function Dashboard() {
           email: item.email,
           phone: item.phone ?? "",
           preferredContact: "Email",
-          orderTotal: 0,
-          tax: 0,
-          paymentMethod: "N/A",
-          last4: "----",
-          squarePaymentId: "N/A",
+          numDays: item.num_days ?? undefined,
+          orderTotal: item.payment_amount ?? null,
+          tax: item.payment_tax ?? null,
+          paymentStatus: item.payment_status ?? "N/A",
+          squarePaymentId: item.payment_reference ?? "N/A",
         }))
       );
 
@@ -353,6 +355,7 @@ export default function Dashboard() {
     if (!pass) return;
     setSelectedPassId(passId);
     setDraft({
+      status: pass.status,
       email: pass.email,
       phone: pass.phone,
       preferredContact: pass.preferredContact,
@@ -366,23 +369,7 @@ export default function Dashboard() {
   async function openQrModal(pass: PassRecord) {
     setQrError("");
 
-    let portalToken = pass.portalToken;
-    if (!portalToken) {
-      try {
-        if (pass.type === "Overnight Guest") {
-          const guest = await getGuestPass(pass.passId);
-          portalToken = guest.portal_token;
-        } else {
-          const visitor = await getVisitorPass(pass.passId);
-          portalToken = visitor.portal_token;
-        }
-      } catch {
-        setQrError("Unable to find portal token for this pass.");
-        return;
-      }
-    }
-
-    setQrTargetPass({ ...pass, portalToken });
+    setQrTargetPass(pass);
     setIsQrModalOpen(true);
   }
 
@@ -391,24 +378,26 @@ export default function Dashboard() {
     setQrTargetPass(null);
     setQrPayload("");
     setQrError("");
-    setQrRefreshedAt("");
+    setQrReloadConfirming(false);
+    setIsRegeneratingQr(false);
   }
 
-  async function refreshQrNow() {
-    if (!qrTargetPass?.portalToken) return;
+  async function confirmRegenerateQr() {
+    if (!qrTargetPass?.passId) return;
+    setIsRegeneratingQr(true);
+    setQrReloadConfirming(false);
     try {
-      const qr = await getPortalQr(qrTargetPass.portalToken);
+      const qr = await regenerateAdminPassQr(qrTargetPass.passId);
       setQrPayload(qr.qr_payload);
-      setQrRefreshSeconds(qr.refresh_seconds);
-      setQrSecondsLeft(qr.refresh_seconds);
-      setQrRefreshedAt(new Date().toLocaleTimeString());
       setQrError("");
     } catch (error) {
       if (error instanceof ApiError) {
         setQrError(error.message);
       } else {
-        setQrError("Unable to refresh QR code.");
+        setQrError("Unable to regenerate QR code.");
       }
+    } finally {
+      setIsRegeneratingQr(false);
     }
   }
 
@@ -416,6 +405,7 @@ export default function Dashboard() {
     if (!selectedPass || !draft) return;
 
     const changes: string[] = [];
+    if (selectedPass.status !== draft.status) changes.push(`Status: ${selectedPass.status} -> ${draft.status}`);
     if (selectedPass.email !== draft.email) changes.push(`Email: ${selectedPass.email} -> ${draft.email}`);
     if (selectedPass.phone !== draft.phone) changes.push(`Phone: ${selectedPass.phone} -> ${draft.phone}`);
     if (selectedPass.preferredContact !== draft.preferredContact)
@@ -430,8 +420,21 @@ export default function Dashboard() {
     const nextStartAt = new Date(draft.startAt).toISOString();
     const nextEndAt = new Date(draft.endAt).toISOString();
 
+    // Recalculate status from dates unless admin explicitly set Revoked
+    const derivedStatus: Status = (() => {
+      if (draft.status === "Revoked") return "Revoked";
+      const now = Date.now();
+      const start = new Date(nextStartAt).getTime();
+      const end = new Date(nextEndAt).getTime();
+      if (now < start) return "Upcoming";
+      if (now > end) return "Expired";
+      return "Active";
+    })();
+
     setIsSaving(true);
     patchAdminPass(selectedPass.passId, {
+      status: derivedStatus.toLowerCase(),
+      email: draft.email,
       phone: draft.phone,
       access_start: nextStartAt,
       access_end: nextEndAt,
@@ -446,6 +449,7 @@ export default function Dashboard() {
         p.passId === selectedPass.passId
           ? {
               ...p,
+              status: derivedStatus,
               email: draft.email,
               phone: draft.phone,
               preferredContact: draft.preferredContact,
@@ -529,6 +533,9 @@ export default function Dashboard() {
           reservation_id: manualDraft.reservationId.trim(),
           check_in: inputDateTimeToIso(manualDraft.startAt),
           check_out: inputDateTimeToIso(manualDraft.endAt),
+          num_adults: manualDraft.adults,
+          num_children: manualDraft.children,
+          pets: manualDraft.pets,
         });
       } else {
         const startIso = inputDateTimeToIso(manualDraft.startAt);
@@ -542,6 +549,7 @@ export default function Dashboard() {
           email: manualDraft.email.trim(),
           phone: manualDraft.phone.trim(),
           vehicle_info: "N/A",
+          access_start: startIso,
           num_days: days,
           num_adults: manualDraft.adults,
           num_children: manualDraft.children,
@@ -599,25 +607,11 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!isQrModalOpen || !qrTargetPass?.portalToken) return;
-    void refreshQrNow();
+    if (!isQrModalOpen || !qrTargetPass?.passId) return;
+    getAdminPassQr(qrTargetPass.passId)
+      .then((qr) => { setQrPayload(qr.qr_payload); setQrError(""); })
+      .catch(() => { setQrError("Unable to load QR code."); });
   }, [isQrModalOpen, qrTargetPass]);
-
-  useEffect(() => {
-    if (!isQrModalOpen) return;
-
-    const interval = window.setInterval(() => {
-      setQrSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-
-    return () => window.clearInterval(interval);
-  }, [isQrModalOpen, qrRefreshSeconds]);
-
-  useEffect(() => {
-    if (!isQrModalOpen) return;
-    if (qrSecondsLeft > 0) return;
-    void refreshQrNow();
-  }, [isQrModalOpen, qrSecondsLeft]);
 
   function handleLogout() {
     clearAdminSession();
@@ -842,6 +836,15 @@ export default function Dashboard() {
             <h4 className={styles.subTitle}>Editable</h4>
             <div className={styles.formGrid}>
               <label>
+                Status
+                <select className={styles.select} value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Status })}>
+                  <option>Active</option>
+                  <option>Upcoming</option>
+                  <option>Expired</option>
+                  <option>Revoked</option>
+                </select>
+              </label>
+              <label>
                 Email
                 <input className={styles.input} value={draft.email} onChange={(e) => setDraft({ ...draft, email: e.target.value })} />
               </label>
@@ -873,7 +876,7 @@ export default function Dashboard() {
               </label>
               <label>
                 Adults
-                <input className={styles.input} type="number" min={0} value={draft.adults} onChange={(e) => setDraft({ ...draft, adults: Number(e.target.value) })} />
+                <input className={styles.input} type="number" min={1} value={draft.adults} onChange={(e) => setDraft({ ...draft, adults: Number(e.target.value) })} />
               </label>
               <label>
                 Children
@@ -881,16 +884,31 @@ export default function Dashboard() {
               </label>
             </div>
 
+            {draft.adults < 1 && (
+              <p className={styles.errorText} style={{ marginBottom: 8 }}>A pass must have at least 1 adult.</p>
+            )}
+            {draft.adults < 1 && draft.children > 0 && (
+              <p className={styles.errorText} style={{ marginBottom: 8 }}>Children cannot be on a pass without at least 1 adult.</p>
+            )}
+            {(draft.adults !== selectedPass.adults || draft.children !== selectedPass.children) && draft.adults >= 1 && (
+              <div className={styles.confirmBox} style={{ marginBottom: 12 }}>
+                <p className={styles.confirmText} style={{ margin: 0 }}>
+                  Party size changed from {selectedPass.adults} adult{selectedPass.adults !== 1 ? "s" : ""} / {selectedPass.children} child{selectedPass.children !== 1 ? "ren" : ""} to {draft.adults} adult{draft.adults !== 1 ? "s" : ""} / {draft.children} child{draft.children !== 1 ? "ren" : ""}.
+                  {" "}Any payment adjustment (refund or additional charge) must be processed separately.
+                </p>
+              </div>
+            )}
+
             <h4 className={styles.subTitle}>Read-only Payment</h4>
             <div className={styles.group}>
               <div>
-                <strong>Order Total:</strong> ${(selectedPass.orderTotal + selectedPass.tax).toFixed(2)}
+                <strong>Total Paid:</strong> {selectedPass.orderTotal != null ? `$${selectedPass.orderTotal.toFixed(2)}` : "N/A"}
               </div>
               <div>
-                <strong>Tax:</strong> ${selectedPass.tax.toFixed(2)}
+                <strong>Tax:</strong> {selectedPass.tax != null ? `$${selectedPass.tax.toFixed(2)}` : "N/A"}
               </div>
               <div>
-                <strong>Payment:</strong> {selectedPass.paymentMethod} . . . . {selectedPass.last4}
+                <strong>Payment Status:</strong> {selectedPass.paymentStatus}
               </div>
               <div>
                 <strong>Square Payment ID:</strong> {selectedPass.squarePaymentId}
@@ -923,7 +941,7 @@ export default function Dashboard() {
               <button className={styles.secondaryBtn} onClick={() => setSelectedPassId(null)}>
                 Cancel
               </button>
-              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving}>
+              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving || draft.adults < 1}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
@@ -942,19 +960,32 @@ export default function Dashboard() {
             </div>
 
             <p className={styles.qrTimer}>
-              QR refreshes in <strong>{qrSecondsLeft}s</strong>
+              QR Code active from {fmtDateTime(qrTargetPass.startAt)} to {fmtDateTime(qrTargetPass.endAt)}
             </p>
-            {qrRefreshedAt ? <p className={styles.muted}>Refreshed at {qrRefreshedAt}</p> : null}
             {qrError ? <p className={styles.errorText}>{qrError}</p> : null}
 
-            <div className={styles.drawerActions}>
-              <button className={styles.secondaryBtn} onClick={closeQrModal}>
-                Close
-              </button>
-              <button className={styles.primaryBtn} onClick={() => void refreshQrNow()}>
-                Refresh QR
-              </button>
-            </div>
+            {qrReloadConfirming ? (
+              <div className={styles.confirmBox}>
+                <p className={styles.confirmText}>Reloading this QR code will invalidate the previous QR code. Proceed?</p>
+                <div className={styles.drawerActions}>
+                  <button className={styles.secondaryBtn} onClick={() => setQrReloadConfirming(false)}>
+                    No
+                  </button>
+                  <button className={styles.primaryBtn} onClick={() => void confirmRegenerateQr()} disabled={isRegeneratingQr}>
+                    {isRegeneratingQr ? "Regenerating..." : "Yes, Reload"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className={styles.drawerActions}>
+                <button className={styles.secondaryBtn} onClick={closeQrModal}>
+                  Close
+                </button>
+                <button className={styles.primaryBtn} onClick={() => setQrReloadConfirming(true)}>
+                  Reload QR
+                </button>
+              </div>
+            )}
           </div>
         </div>
       ) : null}
@@ -1048,15 +1079,47 @@ export default function Dashboard() {
               </label>
 
               {manualDraft.passType === "guest" ? (
-                <label>
-                  Reservation ID
-                  <input
-                    className={styles.input}
-                    value={manualDraft.reservationId}
-                    onChange={(e) => setManualDraft({ ...manualDraft, reservationId: e.target.value })}
-                  />
-                  {manualErrors.reservationId ? <span className={styles.errorText}>{manualErrors.reservationId}</span> : null}
-                </label>
+                <>
+                  <label>
+                    Reservation ID
+                    <input
+                      className={styles.input}
+                      value={manualDraft.reservationId}
+                      onChange={(e) => setManualDraft({ ...manualDraft, reservationId: e.target.value })}
+                    />
+                    {manualErrors.reservationId ? <span className={styles.errorText}>{manualErrors.reservationId}</span> : null}
+                  </label>
+                  <label>
+                    Adults
+                    <input
+                      className={styles.input}
+                      type="number"
+                      min={1}
+                      value={manualDraft.adults}
+                      onChange={(e) => setManualDraft({ ...manualDraft, adults: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    Children
+                    <input
+                      className={styles.input}
+                      type="number"
+                      min={0}
+                      value={manualDraft.children}
+                      onChange={(e) => setManualDraft({ ...manualDraft, children: Number(e.target.value) })}
+                    />
+                  </label>
+                  <label>
+                    Pets
+                    <input
+                      className={styles.input}
+                      type="number"
+                      min={0}
+                      value={manualDraft.pets}
+                      onChange={(e) => setManualDraft({ ...manualDraft, pets: Number(e.target.value) })}
+                    />
+                  </label>
+                </>
               ) : (
                 <>
                   <label>

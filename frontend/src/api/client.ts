@@ -31,10 +31,21 @@ export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> 
 	const payload = isJson ? await response.json() : await response.text();
 
 	if (!response.ok) {
-		const message =
-			typeof payload === "object" && payload && "detail" in payload
-				? String((payload as { detail?: unknown }).detail ?? "Request failed")
-				: `Request failed with status ${response.status}`;
+		let message = `Request failed with status ${response.status}`;
+		if (typeof payload === "object" && payload && "detail" in payload) {
+			const detail = (payload as { detail?: unknown }).detail;
+			if (Array.isArray(detail)) {
+				message = detail
+					.map((e: unknown) =>
+						typeof e === "object" && e !== null && "msg" in e
+							? String((e as { msg: unknown }).msg)
+							: String(e)
+					)
+					.join("; ") || "Request failed";
+			} else {
+				message = String(detail ?? "Request failed");
+			}
+		}
 		throw new ApiError(message, response.status, payload);
 	}
 

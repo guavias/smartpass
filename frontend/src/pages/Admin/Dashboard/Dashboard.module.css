@@ -425,6 +425,19 @@
   font-size: 13px;
 }
 
+.confirmBox {
+  border: 1px solid #fca5a5;
+  background: #fff7f7;
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-top: 8px;
+}
+
+.confirmText {
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+
 .primaryBtn,
 .secondaryBtn {
   height: 36px;
