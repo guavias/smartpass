@@ -98,7 +98,8 @@ function toPassType(value: string): PassType {
 }
 
 function toScanResult(value?: string): ScanResult {
-  return value?.toLowerCase() === "approved" || value?.toLowerCase() === "allow" ? "allow" : "deny";
+  const v = value?.toLowerCase();
+  return v === "granted" || v === "approved" || v === "allow" ? "allow" : "deny";
 }
 
 function parseUTCDateTime(isoDateTime: string): Date {
