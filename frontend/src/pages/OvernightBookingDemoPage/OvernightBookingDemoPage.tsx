@@ -85,10 +85,7 @@ function diffNights(checkIn: Date, checkOut: Date): number {
   return Math.round(ms / (1000 * 60 * 60 * 24));
 }
 
-function createReservationId(): string {
-  const stamp = Date.now().toString().slice(-6);
-  return `RES-${stamp}`;
-}
+
 
 function nightsFromRange(range: DateRangeState): number {
   return Math.max(1, range.days);
