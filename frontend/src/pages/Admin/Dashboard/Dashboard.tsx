@@ -81,7 +81,7 @@ type ManualCreateDraft = {
 };
 
 const ADULT_PRICE_PER_DAY = 15;
-const CHILD_PRICE_PER_DAY = 10;
+const CHILD_PRICE_PER_DAY = 5;
 const TX_TAX_RATE = 0.0825;
 
 function toStatus(value: string): Status {

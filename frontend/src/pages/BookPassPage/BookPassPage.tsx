@@ -21,7 +21,7 @@ type RangeCalendarDayProps = PickersDayProps & {
 };
 
 const ADULT_PRICE_PER_DAY = 15;
-const CHILD_PRICE_PER_DAY = 10;
+const CHILD_PRICE_PER_DAY = 5;
 const TX_TAX_RATE = 0.0825;
 const SQUARE_APP_ID = import.meta.env.VITE_SQUARE_APP_ID as string | undefined;
 const SQUARE_ENV = (import.meta.env.VITE_SQUARE_ENV as string | undefined)?.toLowerCase() ?? "sandbox";
