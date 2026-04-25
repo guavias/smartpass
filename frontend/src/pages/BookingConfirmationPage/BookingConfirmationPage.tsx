@@ -267,7 +267,11 @@ export default function BookingConfirmationPage() {
             <div className={styles.support}>
               Questions? Email{" "}
               <a className={styles.link} href="mailto:info@hi-line-resort.com">
-                info@hi-line-resort.com
+                reservations@hilineresort.com
+              </a>{" "}
+              or call{" "}
+              <a className={styles.link} href="tel:+3253791065">
+                (325) 379-1065
               </a>{" "}
               and include your pass ID <span className={styles.mono}>{data.passId}</span>.
             </div>
