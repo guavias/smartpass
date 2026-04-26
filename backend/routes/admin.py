@@ -36,23 +36,30 @@ qr_service = RotatingQRCodeService()
 
 
 def _calculate_pass_status(doc: dict) -> str:
-    """Live status derived from the access window. Only 'revoked' is a manual override."""
+    """Calculate the current status of a pass.
+
+    Time window is checked first — a future pass is always 'inactive' (Upcoming)
+    and a past pass is always 'expired', regardless of any stored status fields.
+    'Revoked' only applies when the pass is currently within its active window.
+    """
     from database import utcnow
     now = utcnow()
+    access_start = doc.get("access_start")
+    if access_start and access_start.tzinfo is None:
+        access_start = access_start.replace(tzinfo=timezone.utc)
+    access_end = doc.get("access_end")
+    if access_end and access_end.tzinfo is None:
+        access_end = access_end.replace(tzinfo=timezone.utc)
+
+    if access_start and now < access_start:
+        return "inactive"
+    if access_end and now > access_end:
+        return "expired"
+    # Within the active window: respect manual revocation
     if str(doc.get("status_override", "")).lower() == "revoked":
         return "revoked"
     if str(doc.get("status", "")).lower() == "revoked":
         return "revoked"
-    access_start = doc.get("access_start")
-    if access_start and access_start.tzinfo is None:
-        access_start = access_start.replace(tzinfo=timezone.utc)
-    if access_start and now < access_start:
-        return "inactive"
-    access_end = doc.get("access_end")
-    if access_end and access_end.tzinfo is None:
-        access_end = access_end.replace(tzinfo=timezone.utc)
-    if access_end and now > access_end:
-        return "expired"
     return "active"
 
 

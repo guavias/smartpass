@@ -59,12 +59,6 @@ def validate_pass(pass_id):
 
     now = datetime.now(timezone.utc)
 
-    status = str(doc.get("status", "")).lower()
-    status_override = str(doc.get("status_override", "")).lower()
-
-    if status == "revoked" or status_override == "revoked":
-        return False, doc, "revoked"
-
     access_start = doc.get("access_start")
     if access_start and access_start.tzinfo is None:
         access_start = access_start.replace(tzinfo=timezone.utc)
@@ -78,6 +72,12 @@ def validate_pass(pass_id):
 
     if access_end and now > access_end:
         return False, doc, "expired"
+
+    # Within the active window: check for revocation
+    status = str(doc.get("status", "")).lower()
+    status_override = str(doc.get("status_override", "")).lower()
+    if status == "revoked" or status_override == "revoked":
+        return False, doc, "revoked"
 
     return True, doc, "valid"
 

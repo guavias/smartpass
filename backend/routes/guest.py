@@ -68,29 +68,30 @@ def _normalize_checkout_to_end_of_day(checkout: datetime) -> datetime:
 
 
 def _calculate_pass_status(doc: dict) -> str:
-    """Calculate the current status of a pass based on access windows.
+    """Calculate the current status of a pass.
 
-    Only 'revoked' is a persistent manual override (set by admin).
-    All other statuses (inactive/active/expired) are derived from the time window
-    so they transition automatically without any manual intervention.
+    Time window is checked first — a future pass is always 'inactive' (Upcoming)
+    and a past pass is always 'expired', regardless of any stored status fields.
+    'Revoked' only applies when the pass is currently within its active window,
+    preventing stale or erroneous revoke flags from hiding upcoming passes.
     """
     now = utcnow()
-    # Only "revoked" is a persistent manual override
+    access_start = doc.get("access_start")
+    if access_start and access_start.tzinfo is None:
+        access_start = access_start.replace(tzinfo=timezone.utc)
+    access_end = doc.get("access_end")
+    if access_end and access_end.tzinfo is None:
+        access_end = access_end.replace(tzinfo=timezone.utc)
+
+    if access_start and now < access_start:
+        return "inactive"
+    if access_end and now > access_end:
+        return "expired"
+    # Within the active window: respect manual revocation
     if str(doc.get("status_override", "")).lower() == "revoked":
         return "revoked"
     if str(doc.get("status", "")).lower() == "revoked":
         return "revoked"
-    # Time-derived statuses
-    access_start = doc.get("access_start")
-    if access_start and access_start.tzinfo is None:
-        access_start = access_start.replace(tzinfo=timezone.utc)
-    if access_start and now < access_start:
-        return "inactive"
-    access_end = doc.get("access_end")
-    if access_end and access_end.tzinfo is None:
-        access_end = access_end.replace(tzinfo=timezone.utc)
-    if access_end and now > access_end:
-        return "expired"
     return "active"
 
 
