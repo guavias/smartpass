@@ -256,16 +256,27 @@ async def get_guest_pass(guest_id: str):
 @router.post("/find", response_model=GuestResponse)
 async def find_guest_portal(payload: GuestLookupRequest):
     """
-    Find guest portal by reservation + email.
-    Checks companion day pass (visitor type) first, then falls back to overnight guest pass.
+    Find guest portal by reservation ID or pass ID + email.
+    Lookup order:
+      1. Companion day pass (visitor type) by reservation_id
+      2. Overnight guest pass by reservation_id
+      3. Any pass directly by pass_id (UUID), verified against email
     Status is recalculated from access window on each lookup.
     """
-    # Try companion day pass first (the Crappie House QR pass included with overnight stays)
-    doc = await get_day_pass_by_reservation(payload.email, payload.reservation_id)
+    identifier = payload.reservation_id.strip()
 
-    # Fall back to the overnight guest pass itself
+    # Try companion day pass first (the Crappie House QR pass included with overnight stays)
+    doc = await get_day_pass_by_reservation(payload.email, identifier)
+
+    # Fall back to the overnight guest pass by reservation_id
     if not doc:
-        doc = await get_guest_pass_by_reservation(payload.email, payload.reservation_id)
+        doc = await get_guest_pass_by_reservation(payload.email, identifier)
+
+    # Fall back to direct pass_id lookup (UUID entered instead of reservation_id)
+    if not doc:
+        doc = await get_pass_by_id(identifier)
+        if doc and doc.get("email", "").lower() != payload.email.strip().lower():
+            doc = None
 
     if not doc:
         raise HTTPException(status_code=404, detail="No reservation portal found")

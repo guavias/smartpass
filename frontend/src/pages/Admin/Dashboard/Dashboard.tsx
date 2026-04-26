@@ -578,6 +578,8 @@ export default function Dashboard() {
 
   useEffect(() => {
     void loadDashboardData();
+    const interval = setInterval(() => { void loadDashboardData(); }, 5_000);
+    return () => clearInterval(interval);
   }, [loadDashboardData]);
 
   useEffect(() => {
@@ -725,7 +727,7 @@ export default function Dashboard() {
                       <th>Status</th>
                       <th>Access period</th>
                       <th>Type</th>
-                      <th>Party size</th>
+                      <th>Party size (Adults/Children)</th>
                       <th>Last scan</th>
                       <th>Actions</th>
                     </tr>
