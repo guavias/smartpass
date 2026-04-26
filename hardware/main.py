@@ -73,10 +73,8 @@ def validate_pass(pass_id):
     if access_end and now > access_end:
         return False, doc, "expired"
 
-    # Within the active window: check for revocation
-    status = str(doc.get("status", "")).lower()
-    status_override = str(doc.get("status_override", "")).lower()
-    if status == "revoked" or status_override == "revoked":
+    # Within the active window: check for admin revocation
+    if str(doc.get("status_override", "")).lower() == "revoked":
         return False, doc, "revoked"
 
     return True, doc, "valid"

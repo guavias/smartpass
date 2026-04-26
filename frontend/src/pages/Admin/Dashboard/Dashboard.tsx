@@ -7,6 +7,7 @@ import lookupGlassIcon from "../../../assets/lookupglass.png";
 import clipboardIcon from "../../../assets/clipboard.png";
 import {
   clearAdminSession,
+  deleteAdminPass,
   getAdminAccessLogs,
   getAdminPassQr,
   getAdminPasses,
@@ -88,7 +89,7 @@ function toStatus(value: string): Status {
   const normalized = value.toLowerCase();
   if (normalized === "active") return "Active";
   if (normalized === "expired") return "Expired";
-  if (normalized === "inactive") return "Revoked";
+  if (normalized === "inactive") return "Upcoming";
   if (normalized === "revoked") return "Revoked";
   if (normalized === "upcoming") return "Upcoming";
   return "Active";
@@ -276,6 +277,9 @@ export default function Dashboard() {
   const [qrError, setQrError] = useState("");
   const [qrReloadConfirming, setQrReloadConfirming] = useState(false);
   const [isRegeneratingQr, setIsRegeneratingQr] = useState(false);
+
+  const [isDeleteConfirming, setIsDeleteConfirming] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [isManualCreateOpen, setIsManualCreateOpen] = useState(false);
   const [manualDraft, setManualDraft] = useState<ManualCreateDraft>(() => buildDefaultManualDraft());
@@ -517,6 +521,21 @@ export default function Dashboard() {
 
     setSelectedPassId(null);
     setDraft(null);
+    setIsDeleteConfirming(false);
+  }
+
+  async function confirmDeletePass() {
+    if (!selectedPass) return;
+    setIsDeleting(true);
+    try {
+      await deleteAdminPass(selectedPass.passId);
+      setPasses((prev) => prev.filter((p) => p.passId !== selectedPass.passId));
+      setSelectedPassId(null);
+      setDraft(null);
+      setIsDeleteConfirming(false);
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   function openManualCreateModal() {
@@ -885,16 +904,20 @@ export default function Dashboard() {
               <label>
                 Status
                 <span className={styles.muted}>Current: {draft.status}</span>
-                <span className={styles.muted}>Deactivating a pass sets its status to Revoked.</span>
-                <div className={styles.rowActions}>
-                  <button
-                    className={styles.secondaryBtn}
-                    type="button"
-                    onClick={() => setDraft({ ...draft, status: draft.status === "Active" ? "Revoked" : "Active" })}
-                  >
-                    {draft.status === "Active" ? "Deactivate Pass" : "Activate Pass"}
-                  </button>
-                </div>
+                {draft.status === "Active" && (
+                  <>
+                    <span className={styles.muted}>Deactivating a pass sets its status to Revoked.</span>
+                    <div className={styles.rowActions}>
+                      <button
+                        className={styles.secondaryBtn}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, status: "Revoked" })}
+                      >
+                        Deactivate Pass
+                      </button>
+                    </div>
+                  </>
+                )}
               </label>
               <label>
                 Email
@@ -1019,8 +1042,27 @@ export default function Dashboard() {
               {!audit.some((a) => a.passId === selectedPass.passId) ? <li className={styles.muted}>No edits yet.</li> : null}
             </ul>
 
+            <h4 className={styles.subTitle}>Danger Zone</h4>
+            {isDeleteConfirming ? (
+              <div className={styles.confirmBox}>
+                <p className={styles.confirmText}>Permanently delete this pass? This cannot be undone. Access logs referencing this pass will be preserved.</p>
+                <div className={styles.drawerActions}>
+                  <button className={styles.secondaryBtn} onClick={() => setIsDeleteConfirming(false)} disabled={isDeleting}>
+                    Cancel
+                  </button>
+                  <button className={styles.primaryBtn} style={{ background: "#c0392b" }} onClick={() => void confirmDeletePass()} disabled={isDeleting}>
+                    {isDeleting ? "Deleting..." : "Yes, Delete"}
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button className={styles.secondaryBtn} style={{ color: "#c0392b", borderColor: "#c0392b" }} type="button" onClick={() => setIsDeleteConfirming(true)}>
+                Delete Pass
+              </button>
+            )}
+
             <div className={styles.drawerActions}>
-              <button className={styles.secondaryBtn} onClick={() => setSelectedPassId(null)}>
+              <button className={styles.secondaryBtn} onClick={() => { setSelectedPassId(null); setIsDeleteConfirming(false); }}>
                 Cancel
               </button>
               <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving || invalidPartySize}>

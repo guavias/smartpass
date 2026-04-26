@@ -91,10 +91,8 @@ def _calculate_pass_status(doc: dict) -> str:
         return "inactive"
     if access_end and now > access_end:
         return "expired"
-    # Within the active window: respect manual revocation
+    # Within the active window: respect manual revocation (status_override is the single source of truth)
     if str(doc.get("status_override", "")).lower() == "revoked":
-        return "revoked"
-    if str(doc.get("status", "")).lower() == "revoked":
         return "revoked"
     return "active"
 
@@ -235,5 +233,5 @@ async def revoke_visitor_pass(visitor_id: str):
     if not doc or doc.get("user_type") != "visitor":
         raise HTTPException(status_code=404, detail="Visitor not found")
 
-    await update_pass(visitor_id, {"status": "revoked", "revoked_at": utcnow()})
+    await update_pass(visitor_id, {"status": "revoked", "status_override": "revoked", "revoked_at": utcnow()})
     return {"status": "pass revoked", "visitor_id": visitor_id}

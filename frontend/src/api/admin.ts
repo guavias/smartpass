@@ -197,3 +197,9 @@ export async function regenerateAdminPassQr(passId: string): Promise<AdminPassQr
     method: "POST",
   });
 }
+
+export async function deleteAdminPass(passId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/admin/passes/${encodeURIComponent(passId)}`, {
+    method: "DELETE",
+  });
+}

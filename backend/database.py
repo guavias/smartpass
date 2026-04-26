@@ -191,6 +191,12 @@ async def update_pass(pass_id: str, updates: dict[str, Any]) -> Optional[dict[st
 	return await get_pass_by_id(pass_id)
 
 
+async def delete_pass(pass_id: str) -> bool:
+	db = get_database()
+	result = await db.passes.delete_one({"id": pass_id})
+	return result.deleted_count > 0
+
+
 async def get_pass_by_id(pass_id: str) -> Optional[dict[str, Any]]:
 	db = get_database()
 	doc = await db.passes.find_one({"id": pass_id})

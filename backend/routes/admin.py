@@ -9,6 +9,7 @@ import logging
 import qrcode
 
 from database import (
+    delete_pass,
     find_passes_by_email,
     get_admin_by_email,
     get_pass_by_id,
@@ -55,10 +56,8 @@ def _calculate_pass_status(doc: dict) -> str:
         return "inactive"
     if access_end and now > access_end:
         return "expired"
-    # Within the active window: respect manual revocation
+    # Within the active window: respect manual revocation (status_override is the single source of truth)
     if str(doc.get("status_override", "")).lower() == "revoked":
-        return "revoked"
-    if str(doc.get("status", "")).lower() == "revoked":
         return "revoked"
     return "active"
 
@@ -262,6 +261,14 @@ async def patch_admin_pass(pass_id: str, payload: AdminPassPatchRequest):
     if not updated:
         raise HTTPException(status_code=404, detail="Pass not found")
     return _to_admin_pass_item(updated)
+
+
+@router.delete("/passes/{pass_id}", status_code=204)
+async def delete_admin_pass(pass_id: str):
+    """Permanently delete a pass from the database."""
+    deleted = await delete_pass(pass_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Pass not found")
 
 
 @router.get("/passes/{pass_id}/qr", response_model=RotatingQRResponse)
