@@ -294,6 +294,11 @@
   color: #075985;
 }
 
+.pillInactive {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .pillRevoked {
   background: #f1f5f9;
   color: #334155;
@@ -313,6 +318,45 @@
   color: #1d4ed8;
   cursor: pointer;
   text-decoration: underline;
+}
+
+.actionBtn {
+  border: 1px solid transparent;
+  border-radius: 8px;
+  height: 30px;
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+
+.actionEditBtn {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.actionEditBtn:hover {
+  background: #dbeafe;
+  border-color: #93c5fd;
+}
+
+.actionQrBtn {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #047857;
+}
+
+.actionQrBtn:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+
+.actionBtn:focus-visible {
+  outline: 2px solid #0f172a;
+  outline-offset: 1px;
 }
 
 .rowActions {

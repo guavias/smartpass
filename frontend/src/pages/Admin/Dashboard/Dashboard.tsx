@@ -81,16 +81,21 @@ type ManualCreateDraft = {
 };
 
 const ADULT_PRICE_PER_DAY = 15;
-const CHILD_PRICE_PER_DAY = 10;
+const CHILD_PRICE_PER_DAY = 5;
 const TX_TAX_RATE = 0.0825;
 
 function toStatus(value: string): Status {
   const normalized = value.toLowerCase();
   if (normalized === "active") return "Active";
   if (normalized === "expired") return "Expired";
+  if (normalized === "inactive") return "Revoked";
   if (normalized === "revoked") return "Revoked";
-  if (normalized === "upcoming" || normalized === "inactive") return "Upcoming";
+  if (normalized === "upcoming") return "Upcoming";
   return "Active";
+}
+
+function toApiStatus(value: Status): string {
+  return value.toLowerCase();
 }
 
 function toPassType(value: string): PassType {
@@ -138,6 +143,14 @@ function inputDateTimeToIso(value: string) {
   return d.toISOString();
 }
 
+function parseOptionalInteger(value: string): number {
+  const trimmed = value.trim();
+  if (trimmed === "") return Number.NaN;
+  const numeric = Number(trimmed);
+  if (!Number.isFinite(numeric)) return Number.NaN;
+  return Math.trunc(numeric);
+}
+
 function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
@@ -158,6 +171,11 @@ function formatPhoneInput(value: string, keepTrailingHyphen = true) {
   return `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
+function formatPhoneInputFromEdit(previousValue: string, nextRawValue: string) {
+  const isDeleting = nextRawValue.length < previousValue.length;
+  return formatPhoneInput(nextRawValue, !isDeleting);
+}
+
 function calculateDays(startIso: string, endIso: string) {
   const start = parseUTCDateTime(startIso);
   const end = parseUTCDateTime(endIso);
@@ -165,6 +183,33 @@ function calculateDays(startIso: string, endIso: string) {
   const endDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
   const ms = endDay.getTime() - startDay.getTime();
   return Math.max(1, Math.round(ms / (1000 * 60 * 60 * 24)) + 1);
+}
+
+function toLocalInputDateTimeValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function withLocalTime(value: string, fallback: Date, hour: number, minute: number): string {
+  const d = value ? new Date(value) : new Date(fallback);
+  if (Number.isNaN(d.getTime())) {
+    const safe = new Date(fallback);
+    safe.setHours(hour, minute, 0, 0);
+    return toLocalInputDateTimeValue(safe);
+  }
+  d.setHours(hour, minute, 0, 0);
+  return toLocalInputDateTimeValue(d);
+}
+
+function applyOvernightDefaultWindow(startAt: string, endAt: string): { startAt: string; endAt: string } {
+  const startFallback = new Date();
+  const endFallback = endAt ? new Date(endAt) : new Date(startFallback);
+  if (!endAt) endFallback.setDate(endFallback.getDate() + 1);
+
+  return {
+    startAt: withLocalTime(startAt, startFallback, 12, 0),
+    endAt: withLocalTime(endAt, endFallback, 23, 59),
+  };
 }
 
 function buildDefaultManualDraft(): ManualCreateDraft {
@@ -404,6 +449,8 @@ export default function Dashboard() {
 
   function saveDetails() {
     if (!selectedPass || !draft) return;
+    if (!Number.isInteger(draft.adults) || draft.adults < 1) return;
+    if (!Number.isInteger(draft.children) || draft.children < 0) return;
 
     const changes: string[] = [];
     if (selectedPass.status !== draft.status) changes.push(`Status: ${selectedPass.status} -> ${draft.status}`);
@@ -421,20 +468,9 @@ export default function Dashboard() {
     const nextStartAt = new Date(draft.startAt).toISOString();
     const nextEndAt = new Date(draft.endAt).toISOString();
 
-    // Recalculate status from dates unless admin explicitly set Revoked
-    const derivedStatus: Status = (() => {
-      if (draft.status === "Revoked") return "Revoked";
-      const now = Date.now();
-      const start = new Date(nextStartAt).getTime();
-      const end = new Date(nextEndAt).getTime();
-      if (now < start) return "Upcoming";
-      if (now > end) return "Expired";
-      return "Active";
-    })();
-
     setIsSaving(true);
     patchAdminPass(selectedPass.passId, {
-      status: derivedStatus.toLowerCase(),
+      status: toApiStatus(draft.status),
       email: draft.email,
       phone: draft.phone,
       access_start: nextStartAt,
@@ -452,7 +488,7 @@ export default function Dashboard() {
         p.passId === selectedPass.passId
           ? {
               ...p,
-              status: derivedStatus,
+              status: draft.status,
               email: draft.email,
               phone: draft.phone,
               preferredContact: draft.preferredContact,
@@ -472,7 +508,7 @@ export default function Dashboard() {
           passId: selectedPass.passId,
           changedBy: "admin.user",
           changedAt: new Date().toISOString(),
-          reason: "Support update",
+          reason: changes.length === 1 ? changes[0] : `${changes.length} fields updated`,
           changes,
         },
         ...prev,
@@ -759,10 +795,10 @@ export default function Dashboard() {
                         </td>
                         <td>
                           <div className={styles.rowActions}>
-                            <button className={styles.linkBtn} onClick={() => openDetails(p.passId)}>
+                            <button className={`${styles.actionBtn} ${styles.actionEditBtn}`} onClick={() => openDetails(p.passId)}>
                               View / Edit
                             </button>
-                            <button className={styles.linkBtn} onClick={() => void openQrModal(p)}>
+                            <button className={`${styles.actionBtn} ${styles.actionQrBtn}`} onClick={() => void openQrModal(p)}>
                               View QR
                             </button>
                           </div>
@@ -820,6 +856,13 @@ export default function Dashboard() {
       {selectedPass && draft && (
         <aside className={styles.drawerBackdrop} onClick={() => setSelectedPassId(null)}>
           <div className={styles.drawer} onClick={(e) => e.stopPropagation()}>
+            {(() => {
+              const invalidAdults = !Number.isInteger(draft.adults) || draft.adults < 1;
+              const invalidChildren = !Number.isInteger(draft.children) || draft.children < 0;
+              const invalidPartySize = invalidAdults || invalidChildren;
+
+              return (
+                <>
             <h3 className={styles.drawerTitle}>Pass Details</h3>
 
             <div className={styles.group}>
@@ -841,12 +884,17 @@ export default function Dashboard() {
             <div className={styles.formGrid}>
               <label>
                 Status
-                <select className={styles.select} value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Status })}>
-                  <option>Active</option>
-                  <option>Upcoming</option>
-                  <option>Expired</option>
-                  <option>Revoked</option>
-                </select>
+                <span className={styles.muted}>Current: {draft.status}</span>
+                <span className={styles.muted}>Deactivating a pass sets its status to Revoked.</span>
+                <div className={styles.rowActions}>
+                  <button
+                    className={styles.secondaryBtn}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, status: draft.status === "Active" ? "Revoked" : "Active" })}
+                  >
+                    {draft.status === "Active" ? "Deactivate Pass" : "Activate Pass"}
+                  </button>
+                </div>
               </label>
               <label>
                 Email
@@ -857,7 +905,16 @@ export default function Dashboard() {
                 <input
                   className={styles.input}
                   value={draft.phone}
-                  onChange={(e) => setDraft({ ...draft, phone: formatPhoneInput(e.target.value) })}
+                  onChange={(e) =>
+                    setDraft((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            phone: formatPhoneInputFromEdit(prev.phone, e.target.value),
+                          }
+                        : prev
+                    )
+                  }
                   placeholder="xxx-xxx-xxxx"
                   inputMode="tel"
                   maxLength={12}
@@ -880,21 +937,33 @@ export default function Dashboard() {
               </label>
               <label>
                 Adults
-                <input className={styles.input} type="number" min={1} value={draft.adults} onChange={(e) => setDraft({ ...draft, adults: Number(e.target.value) })} />
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={1}
+                  value={Number.isNaN(draft.adults) ? "" : draft.adults}
+                  onChange={(e) => setDraft({ ...draft, adults: parseOptionalInteger(e.target.value) })}
+                />
               </label>
               <label>
                 Children
-                <input className={styles.input} type="number" min={0} value={draft.children} onChange={(e) => setDraft({ ...draft, children: Number(e.target.value) })} />
+                <input
+                  className={styles.input}
+                  type="number"
+                  min={0}
+                  value={Number.isNaN(draft.children) ? "" : draft.children}
+                  onChange={(e) => setDraft({ ...draft, children: parseOptionalInteger(e.target.value) })}
+                />
               </label>
             </div>
 
-            {draft.adults < 1 && (
+            {invalidAdults && (
               <p className={styles.errorText} style={{ marginBottom: 8 }}>A pass must have at least 1 adult.</p>
             )}
-            {draft.adults < 1 && draft.children > 0 && (
+            {!invalidChildren && draft.adults < 1 && draft.children > 0 && (
               <p className={styles.errorText} style={{ marginBottom: 8 }}>Children cannot be on a pass without at least 1 adult.</p>
             )}
-            {(draft.adults !== selectedPass.adults || draft.children !== selectedPass.children) && draft.adults >= 1 && (
+            {!invalidPartySize && (draft.adults !== selectedPass.adults || draft.children !== selectedPass.children) && draft.adults >= 1 && (
               <div className={styles.confirmBox} style={{ marginBottom: 12 }}>
                 <p className={styles.confirmText} style={{ margin: 0 }}>
                   Party size changed from {selectedPass.adults} adult{selectedPass.adults !== 1 ? "s" : ""} / {selectedPass.children} child{selectedPass.children !== 1 ? "ren" : ""} to {draft.adults} adult{draft.adults !== 1 ? "s" : ""} / {draft.children} child{draft.children !== 1 ? "ren" : ""}.
@@ -935,7 +1004,16 @@ export default function Dashboard() {
                 .slice(0, 5)
                 .map((a) => (
                   <li key={a.id}>
-                    {fmtDateTime(a.changedAt)} - {a.changedBy} ({a.reason})
+                    <div>{fmtDateTime(a.changedAt)} - {a.changedBy}</div>
+                    {a.changes.length > 0 ? (
+                      <div className={styles.muted}>
+                        {a.changes.map((change, idx) => (
+                          <div key={`${a.id}-change-${idx}`}>{change}</div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className={styles.muted}>{a.reason}</div>
+                    )}
                   </li>
                 ))}
               {!audit.some((a) => a.passId === selectedPass.passId) ? <li className={styles.muted}>No edits yet.</li> : null}
@@ -945,10 +1023,13 @@ export default function Dashboard() {
               <button className={styles.secondaryBtn} onClick={() => setSelectedPassId(null)}>
                 Cancel
               </button>
-              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving || draft.adults < 1}>
+              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving || invalidPartySize}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
+                </>
+              );
+            })()}
           </div>
         </aside>
       )}
@@ -1006,7 +1087,20 @@ export default function Dashboard() {
                 <select
                   className={styles.select}
                   value={manualDraft.passType}
-                  onChange={(e) => setManualDraft({ ...manualDraft, passType: e.target.value as ManualPassType })}
+                  onChange={(e) => {
+                    const nextType = e.target.value as ManualPassType;
+                    if (nextType === "guest") {
+                      const overnightWindow = applyOvernightDefaultWindow(manualDraft.startAt, manualDraft.endAt);
+                      setManualDraft({
+                        ...manualDraft,
+                        passType: nextType,
+                        startAt: overnightWindow.startAt,
+                        endAt: overnightWindow.endAt,
+                      });
+                      return;
+                    }
+                    setManualDraft({ ...manualDraft, passType: nextType });
+                  }}
                 >
                   <option value="visitor">Visitor Day Pass</option>
                   <option value="guest">Overnight Guest Pass</option>
@@ -1040,7 +1134,12 @@ export default function Dashboard() {
                 <input
                   className={styles.input}
                   value={manualDraft.phone}
-                  onChange={(e) => setManualDraft({ ...manualDraft, phone: formatPhoneInput(e.target.value) })}
+                  onChange={(e) =>
+                    setManualDraft((prev) => ({
+                      ...prev,
+                      phone: formatPhoneInputFromEdit(prev.phone, e.target.value),
+                    }))
+                  }
                   placeholder="xxx-xxx-xxxx"
                   inputMode="tel"
                   maxLength={12}
