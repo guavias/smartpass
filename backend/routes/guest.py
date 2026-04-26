@@ -68,20 +68,24 @@ def _normalize_checkout_to_end_of_day(checkout: datetime) -> datetime:
 
 
 def _calculate_pass_status(doc: dict) -> str:
-    """Calculate the current status of a pass based on access windows and stored status"""
+    """Calculate the current status of a pass based on access windows.
+
+    Only 'revoked' is a persistent manual override (set by admin).
+    All other statuses (inactive/active/expired) are derived from the time window
+    so they transition automatically without any manual intervention.
+    """
     now = utcnow()
-    status_override = str(doc.get("status_override", "")).lower()
-    if status_override in {"revoked", "inactive", "expired"}:
-        return status_override
+    # Only "revoked" is a persistent manual override
+    if str(doc.get("status_override", "")).lower() == "revoked":
+        return "revoked"
     if str(doc.get("status", "")).lower() == "revoked":
         return "revoked"
-    # Check if not yet active
+    # Time-derived statuses
     access_start = doc.get("access_start")
     if access_start and access_start.tzinfo is None:
         access_start = access_start.replace(tzinfo=timezone.utc)
     if access_start and now < access_start:
         return "inactive"
-    # Check if expired
     access_end = doc.get("access_end")
     if access_end and access_end.tzinfo is None:
         access_end = access_end.replace(tzinfo=timezone.utc)
@@ -163,6 +167,7 @@ async def create_guest_pass(guest: GuestCreate):
 
         existing = await get_guest_pass_by_reservation(guest.email, guest.reservation_id)
         if existing and existing.get("status") != "revoked":
+            initial_status = "inactive" if check_in > utcnow() else "active"
             updated = await update_pass(
                 existing["id"],
                 {
@@ -170,7 +175,8 @@ async def create_guest_pass(guest: GuestCreate):
                     "phone": guest.phone,
                     "access_start": check_in,
                     "access_end": check_out,
-                    "status": "active",
+                    "status": initial_status,
+                    "status_override": None,
                     "num_adults": guest.num_adults,
                     "num_children": guest.num_children,
                     "pets": guest.pets,
@@ -193,6 +199,8 @@ async def create_guest_pass(guest: GuestCreate):
             valid_until=check_out,
         )
 
+        initial_status = "inactive" if check_in > utcnow() else "active"
+
         pass_doc = {
             "id": guest_id,
             "user_id": guest_id,
@@ -203,7 +211,7 @@ async def create_guest_pass(guest: GuestCreate):
             "reservation_id": guest.reservation_id,
             "portal_token": portal_token,
             "token_seed": token_seed,
-            "status": "active",
+            "status": initial_status,
             "created_at": created_at,
             "access_start": check_in,
             "access_end": check_out,

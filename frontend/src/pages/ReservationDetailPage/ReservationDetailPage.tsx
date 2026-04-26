@@ -166,7 +166,7 @@ export default function ReservationDetailPage() {
   }, [passId, portalToken]);
 
   const qrNote = qrStatusNote(portalStatus, startDateTime, endDateTime);
-  const qrBlocked = portalStatus === "expired" || portalStatus === "revoked";
+  const qrBlocked = portalStatus === "inactive" || portalStatus === "expired" || portalStatus === "revoked";
 
   useEffect(() => {
     let isActive = true;

@@ -79,9 +79,6 @@ def validate_pass(pass_id):
     if access_end and now > access_end:
         return False, doc, "expired"
 
-    if status not in {"active"}:
-        return False, doc, "not_active"
-
     return True, doc, "valid"
 
 

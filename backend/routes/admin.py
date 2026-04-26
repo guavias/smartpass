@@ -35,6 +35,27 @@ router = APIRouter()
 qr_service = RotatingQRCodeService()
 
 
+def _calculate_pass_status(doc: dict) -> str:
+    """Live status derived from the access window. Only 'revoked' is a manual override."""
+    from database import utcnow
+    now = utcnow()
+    if str(doc.get("status_override", "")).lower() == "revoked":
+        return "revoked"
+    if str(doc.get("status", "")).lower() == "revoked":
+        return "revoked"
+    access_start = doc.get("access_start")
+    if access_start and access_start.tzinfo is None:
+        access_start = access_start.replace(tzinfo=timezone.utc)
+    if access_start and now < access_start:
+        return "inactive"
+    access_end = doc.get("access_end")
+    if access_end and access_end.tzinfo is None:
+        access_end = access_end.replace(tzinfo=timezone.utc)
+    if access_end and now > access_end:
+        return "expired"
+    return "active"
+
+
 def _render_qr_png(payload: str) -> bytes:
     qr = qrcode.QRCode(
         version=1,
@@ -96,7 +117,7 @@ def _to_admin_pass_item(doc: dict) -> AdminPassItem:
         email=doc.get("email", ""),
         phone=doc.get("phone"),
         pass_type=doc.get("user_type", "visitor"),
-        status=doc.get("status", "unknown"),
+        status=_calculate_pass_status(doc),
         start_at=doc.get("access_start"),
         end_at=doc.get("access_end"),
         adults=doc.get("num_adults", doc.get("adults", 0)),
@@ -218,7 +239,8 @@ async def patch_admin_pass(pass_id: str, payload: AdminPassPatchRequest):
         if requested_status not in {"active", "inactive", "expired", "revoked"}:
             raise HTTPException(status_code=400, detail="Invalid status. Use active, inactive, expired, or revoked.")
         allowed_updates["status"] = requested_status
-        allowed_updates["status_override"] = None if requested_status == "active" else requested_status
+        # Only "revoked" is a persistent manual override; all other statuses are time-derived
+        allowed_updates["status_override"] = "revoked" if requested_status == "revoked" else None
 
     if "access_start" in allowed_updates:
         allowed_updates["access_start"] = _normalize_utc(allowed_updates["access_start"])
