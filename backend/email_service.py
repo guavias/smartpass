@@ -127,7 +127,7 @@ class EmailService:
         <tr><td style="background:#f9f9f9;padding:20px 40px;border-top:1px solid #e5e5e5;">
           <p style="margin:0;color:#999;font-size:12px;text-align:center;">
             Hi-Line Resort &bull; Crappie House Access System<br>
-            Questions? Email <a href="mailto:info@hi-line-resort.com" style="color:#2563eb;">info@hi-line-resort.com</a>
+            Questions? Email <a href="mailto:reservations@hilineresort.com" style="color:#2563eb;">reservations@hilineresort.com</a>
           </p>
         </td></tr>
 

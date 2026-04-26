@@ -266,8 +266,8 @@ export default function BookingConfirmationPage() {
 
             <div className={styles.support}>
               Questions? Email{" "}
-              <a className={styles.link} href="mailto:info@hi-line-resort.com">
-                info@hi-line-resort.com
+              <a className={styles.link} href="mailto:reservations@hilineresort.com">
+                reservations@hilineresort.com
               </a>{" "}
               and include your pass ID <span className={styles.mono}>{data.passId}</span>.
             </div>

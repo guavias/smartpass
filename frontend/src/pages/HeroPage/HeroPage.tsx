@@ -137,7 +137,7 @@ export default function HeroPage() {
 
           <div className={styles.heroInfo}>
             <div>ADULT DAY PASS $15</div>
-            <div>CHILD DAY PASS $10</div>
+            <div>CHILD DAY PASS $5</div>
             <div>12:01am to Midnight (Need New Pass after Midnight)</div>
             <br />
             <div>ALL OVERNIGHT GUESTS STAYING AT THE HI-LINE</div>
