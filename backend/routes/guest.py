@@ -68,13 +68,9 @@ def _normalize_checkout_to_end_of_day(checkout: datetime) -> datetime:
 
 
 def _calculate_pass_status(doc: dict) -> str:
-    """Manual status_override always wins over the time window.
-    'active' override = scannable regardless of time. 'revoked' override = always denied.
-    Without an override, status is derived from the access time window.
-    """
-    override = str(doc.get("status_override", "")).lower()
-    if override in ("active", "revoked"):
-        return override
+    """'revoked' override always wins. Without it, status is derived from the access time window."""
+    if str(doc.get("status_override", "")).lower() == "revoked":
+        return "revoked"
 
     now = utcnow()
     access_start = doc.get("access_start")

@@ -472,9 +472,14 @@ export default function Dashboard() {
     const nextStartAt = new Date(draft.startAt).toISOString();
     const nextEndAt = new Date(draft.endAt).toISOString();
 
+    // Only send status when it changes to a settable value (active = reactivate, revoked = revoke)
+    const statusPayload = (draft.status !== selectedPass.status && (draft.status === "Active" || draft.status === "Revoked"))
+      ? { status: toApiStatus(draft.status) }
+      : {};
+
     setIsSaving(true);
     patchAdminPass(selectedPass.passId, {
-      status: toApiStatus(draft.status),
+      ...statusPayload,
       email: draft.email,
       phone: draft.phone,
       access_start: nextStartAt,
@@ -900,7 +905,23 @@ export default function Dashboard() {
             </div>
 
             <h4 className={styles.subTitle}>Editable</h4>
-            <div className={styles.formGrid}>
+            {draft.status === "Revoked" && (
+              <div className={styles.confirmBox} style={{ marginBottom: 12 }}>
+                <p className={styles.confirmText} style={{ margin: 0 }}>
+                  This pass is revoked. Reactivate it to unlock editing. The status after reactivation will be determined by the access dates.
+                </p>
+                <div className={styles.rowActions} style={{ marginTop: 8 }}>
+                  <button
+                    className={styles.secondaryBtn}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, status: "Active" })}
+                  >
+                    Reactivate Pass
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className={styles.formGrid} style={draft.status === "Revoked" ? { opacity: 0.4, pointerEvents: "none" } : undefined}>
               <label>
                 Status
                 <span className={styles.muted}>Current: {draft.status}</span>
@@ -914,20 +935,6 @@ export default function Dashboard() {
                         onClick={() => setDraft({ ...draft, status: "Revoked" })}
                       >
                         Revoke Pass
-                      </button>
-                    </div>
-                  </>
-                )}
-                {(draft.status === "Revoked" || draft.status === "Expired") && (
-                  <>
-                    <span className={styles.muted}>Reactivating overrides the time window — the pass becomes scannable immediately.</span>
-                    <div className={styles.rowActions}>
-                      <button
-                        className={styles.secondaryBtn}
-                        type="button"
-                        onClick={() => setDraft({ ...draft, status: "Active" })}
-                      >
-                        Reactivate Pass
                       </button>
                     </div>
                   </>
@@ -1079,7 +1086,7 @@ export default function Dashboard() {
               <button className={styles.secondaryBtn} onClick={() => { setSelectedPassId(null); setIsDeleteConfirming(false); }}>
                 Cancel
               </button>
-              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving || invalidPartySize}>
+              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving || invalidPartySize || draft.status === "Revoked"}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>

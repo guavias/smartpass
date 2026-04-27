@@ -37,18 +37,13 @@ qr_service = RotatingQRCodeService()
 
 
 def _calculate_pass_status(doc: dict) -> str:
-    """Calculate the current status of a pass.
-
-    Manual admin override (status_override) always wins over the time window.
-    - 'active' override: scannable regardless of time window (reactivated expired/revoked passes)
-    - 'revoked' override: denied regardless of time window
-    If no override, status is derived purely from the access time window.
-    Upcoming/inactive and expired can only be reached by editing access times.
+    """'revoked' override always wins — a revoked pass is denied regardless of time window.
+    Without a revoke override, status is derived from the access time window.
+    To clear revoked, an admin must reactivate; to change inactive/expired, edit the access times.
     """
     from database import utcnow
-    override = str(doc.get("status_override", "")).lower()
-    if override in ("active", "revoked"):
-        return override
+    if str(doc.get("status_override", "")).lower() == "revoked":
+        return "revoked"
 
     now = utcnow()
     access_start = doc.get("access_start")
@@ -241,22 +236,39 @@ async def patch_admin_pass(pass_id: str, payload: AdminPassPatchRequest):
             raise HTTPException(status_code=404, detail="Pass not found")
         return _to_admin_pass_item(doc)
 
+    # Fetch current doc to enforce revocation lock
+    current_doc = await get_pass_by_id(pass_id)
+    if not current_doc:
+        raise HTTPException(status_code=404, detail="Pass not found")
+
+    is_currently_revoked = str(current_doc.get("status_override", "")).lower() == "revoked"
+    is_reactivating = str(allowed_updates.get("status", "")).lower() == "active"
+    has_non_status_changes = any(k != "status" for k in allowed_updates)
+
+    # Revoked passes are locked — only the reactivation status change is permitted
+    if is_currently_revoked and has_non_status_changes and not is_reactivating:
+        raise HTTPException(
+            status_code=400,
+            detail="This pass is revoked. Reactivate it before making other changes.",
+        )
+
     if "status" in allowed_updates:
         requested_status = str(allowed_updates["status"]).strip().lower()
         if requested_status not in {"active", "revoked"}:
             raise HTTPException(
                 status_code=400,
-                detail="Status can only be set to 'active' or 'revoked'. "
-                       "To make a pass inactive or expired, edit its access times.",
+                detail="Status can only be set to 'active' (reactivate) or 'revoked'.",
             )
         allowed_updates["status"] = requested_status
-        # Both active and revoked are persistent manual overrides stored in status_override
-        allowed_updates["status_override"] = requested_status
-
-    if "access_start" in allowed_updates or "access_end" in allowed_updates:
-        # Editing times clears any manual status override so the time window becomes authoritative again
-        if "status" not in allowed_updates:
+        if requested_status == "revoked":
+            allowed_updates["status_override"] = "revoked"
+        else:
+            # Reactivate: clear override so the time window becomes authoritative
             allowed_updates["status_override"] = None
+
+    # Editing times on a non-revoked pass also clears any stale override
+    if ("access_start" in allowed_updates or "access_end" in allowed_updates) and "status" not in allowed_updates:
+        allowed_updates["status_override"] = None
 
     if "access_start" in allowed_updates:
         allowed_updates["access_start"] = _normalize_utc(allowed_updates["access_start"])

@@ -57,11 +57,8 @@ def validate_pass(pass_id):
     if not doc:
         return False, None, "not_found"
 
-    # Manual override always wins over the time window
-    override = str(doc.get("status_override", "")).lower()
-    if override == "active":
-        return True, doc, "valid"
-    if override == "revoked":
+    # Revoked override always wins
+    if str(doc.get("status_override", "")).lower() == "revoked":
         return False, doc, "revoked"
 
     # No override: check time window
