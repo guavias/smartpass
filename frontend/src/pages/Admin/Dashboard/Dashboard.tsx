@@ -214,13 +214,18 @@ function applyOvernightDefaultWindow(startAt: string, endAt: string): { startAt:
 }
 
 function buildDefaultManualDraft(): ManualCreateDraft {
-  const now = new Date();
-  const end = new Date(now);
-  end.setDate(end.getDate() + 1);
-
   const pad = (n: number) => String(n).padStart(2, "0");
   const toInput = (d: Date) =>
     `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const start = new Date(tomorrow);
+  start.setHours(12, 0, 0, 0);
+
+  const end = new Date(tomorrow);
+  end.setHours(23, 59, 0, 0);
 
   return {
     passType: "visitor",
@@ -232,7 +237,7 @@ function buildDefaultManualDraft(): ManualCreateDraft {
     adults: 1,
     children: 0,
     pets: 0,
-    startAt: toInput(now),
+    startAt: toInput(start),
     endAt: toInput(end),
     reservationId: "",
   };
