@@ -7,7 +7,7 @@ import pytz
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import (
     Mail, Attachment, FileContent, FileName,
-    FileType, Disposition, ContentId,
+    FileType, Disposition, ContentId, Header,
 )
 from qr_generator import QRCodeGenerator
 
@@ -74,7 +74,7 @@ def _send(client: SendGridAPIClient, to: str, subject: str, html: str, plain: st
         plain_text_content=plain or _strip_html(html),
     )
     # List-Unsubscribe header reduces spam scoring
-    message.header = {"List-Unsubscribe": f"<mailto:{_from_address()}?subject=unsubscribe>"}
+    message.header = Header("List-Unsubscribe", f"<mailto:{_from_address()}?subject=unsubscribe>")
     _attach_logo(message)
     response = client.send(message)
     return {"success": True, "email_id": str(response.headers.get("X-Message-Id", ""))}
