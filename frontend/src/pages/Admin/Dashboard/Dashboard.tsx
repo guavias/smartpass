@@ -1086,7 +1086,7 @@ export default function Dashboard() {
               <button className={styles.secondaryBtn} onClick={() => { setSelectedPassId(null); setIsDeleteConfirming(false); }}>
                 Cancel
               </button>
-              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving || invalidPartySize || draft.status === "Revoked"}>
+              <button className={styles.primaryBtn} onClick={saveDetails} disabled={isSaving || invalidPartySize || (selectedPass.status === "Revoked" && draft.status === "Revoked")}>
                 {isSaving ? "Saving..." : "Save Changes"}
               </button>
             </div>
