@@ -4,16 +4,16 @@ import logging
 from pathlib import Path
 from datetime import datetime
 import pytz
-import resend
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 from qr_generator import QRCodeGenerator
 
 
 logger = logging.getLogger(__name__)
 
-# Central timezone for email display
 CST = pytz.timezone('America/Chicago')
 
-# Embed logo as base64 data URI so it displays in email without needing a public URL
+
 def _load_logo_data_uri() -> str:
     logo_path = Path(__file__).parent / "static" / "images" / "hilineLogo.png"
     try:
@@ -24,37 +24,41 @@ def _load_logo_data_uri() -> str:
 
 _LOGO_DATA_URI = _load_logo_data_uri()
 
-# Get base URL from environment at runtime (after .env is loaded)
+
 def _get_base_url() -> str:
     return os.getenv("BASE_URL", "http://localhost:8000")
 
 
 def _to_cst(dt: datetime) -> datetime:
-    """Convert UTC datetime to CST/CDT"""
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=pytz.UTC)
     return dt.astimezone(CST)
 
 
-# Lazy-load Resend API key on first use
-_resend_initialized = False
+def _get_client() -> SendGridAPIClient | None:
+    api_key = os.getenv("SENDGRID_API_KEY")
+    if not api_key:
+        logger.warning("SENDGRID_API_KEY not set")
+        return None
+    return SendGridAPIClient(api_key)
 
-def _init_resend():
-    """Initialize Resend API key when first needed"""
-    global _resend_initialized
-    if not _resend_initialized:
-        api_key = os.getenv("RESEND_API_KEY")
-        if not api_key:
-            logger.warning("RESEND_API_KEY not found in environment variables")
-            return False
-        resend.api_key = api_key
-        _resend_initialized = True
-        logger.info("Resend API initialized successfully")
-    return _resend_initialized
+
+def _from_address() -> str:
+    return os.getenv("SENDGRID_FROM_EMAIL", "noreply@hilineresort.com")
+
+
+def _send(client: SendGridAPIClient, to: str, subject: str, html: str) -> dict:
+    message = Mail(
+        from_email=_from_address(),
+        to_emails=to,
+        subject=subject,
+        html_content=html,
+    )
+    response = client.send(message)
+    return {"success": True, "email_id": str(response.headers.get("X-Message-Id", ""))}
 
 
 class EmailService:
-    """Service for sending emails via Resend API"""
 
     @staticmethod
     def send_portal_access_email(
@@ -66,8 +70,8 @@ class EmailService:
         access_end: datetime,
     ) -> dict:
         """Send portal access link to guest so they can view their QR code."""
-        if not _init_resend():
-            logger.error("Resend API key not configured. Check RESEND_API_KEY.")
+        client = _get_client()
+        if not client:
             return {"success": False, "error": "Email service not configured"}
 
         try:
@@ -77,6 +81,7 @@ class EmailService:
             end_cst = _to_cst(access_end)
             start_formatted = start_cst.strftime("%B %d, %Y at %I:%M %p CDT")
             end_formatted = end_cst.strftime("%B %d, %Y at %I:%M %p CDT")
+
             html_body = f"""<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
@@ -137,17 +142,8 @@ class EmailService:
 </body>
 </html>"""
 
-            response = resend.Emails.send(
-                {
-                    "from": "Hi-Line Resort <onboarding@resend.dev>",
-                    "to": [recipient_email],
-                    "subject": subject,
-                    "html": html_body,
-                }
-            )
+            return _send(client, recipient_email, subject, html_body)
 
-            logger.info(f"Portal access email sent to {recipient_email}")
-            return {"success": True, "email_id": response.get("id")}
         except Exception as e:
             logger.error(f"Failed to send portal email to {recipient_email}: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -160,91 +156,33 @@ class EmailService:
         user_type: str,
         access_expires_at: datetime,
     ) -> dict:
-        """
-        Send QR code email to visitor/guest with locally generated QR image
-        
-        Args:
-            recipient_email: Email address of recipient
-            recipient_name: Name of recipient
-            qr_code: QR code string/token (will be encoded into the QR image)
-            user_type: "visitor" or "guest"
-            access_expires_at: When the QR code expires
-            
-        Returns:
-            dict with email send result
-        """
-        if not _init_resend():
-            logger.error("Resend API key not configured. Check RESEND_API_KEY.")
+        client = _get_client()
+        if not client:
             return {"success": False, "error": "Email service not configured"}
 
         try:
-            # Generate QR code locally and get URL
             qr_result = QRCodeGenerator.generate_and_get_url(qr_code, _get_base_url())
-            
             if not qr_result["success"]:
-                logger.error(f"Failed to generate QR code: {qr_result.get('error')}")
                 raise Exception("Could not generate QR code")
-            
+
             qr_image_url = qr_result["qr_url"]
-            
-            subject = "Your Smart Pass QR Code - Access Your Visit"
-            
-            # Build HTML email with embedded QR code image
-            # Convert to CST for display
             expires_cst = _to_cst(access_expires_at)
             expires_formatted = expires_cst.strftime("%I:%M %p on %B %d, %Y")
             user_type_friendly = "Visit" if user_type == "visitor" else "Reservation"
-            
-            html_body = f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 30px;">
-                        <h2 style="margin: 0;">🔑 Welcome to Smart Pass!</h2>
-                    </div>
-                    
-                    <p>Hi {recipient_name},</p>
-                    <p>Your {user_type_friendly} has been confirmed. Below is your unique QR code for gate access:</p>
-                    
-                    <div style="margin: 30px 0; text-align: center; background: #f5f5f5; padding: 20px; border-radius: 10px;">
-                        <img src="{qr_image_url}" 
-                             alt="Smart Pass QR Code" 
-                             style="width: 250px; height: 250px; border: 2px solid #667eea; border-radius: 8px;">
-                        <p style="font-size: 11px; color: #666; margin-top: 15px; font-family: monospace; word-break: break-all;">Token: {qr_code}</p>
-                    </div>
-                    
-                    <div style="background: #e8f4f8; border-left: 4px solid #0288d1; padding: 15px; margin: 20px 0; border-radius: 4px;">
-                        <p style="margin: 0; color: #01579b;"><strong>⏰ Access expires at:</strong> {expires_formatted}</p>
-                    </div>
-                    
-                    <p style="color: #d32f2f; font-weight: bold;">⚠️ Important:</p>
-                    <ul>
-                        <li>This QR code is unique and non-transferable</li>
-                        <li>Do not share it with others</li>
-                        <li>Scan it at the gate to gain access</li>
-                    </ul>
-                    
-                    <div style="border-top: 1px solid #ddd; padding-top: 20px; margin-top: 30px;">
-                        <p style="color: #666; font-size: 12px; text-align: center;">
-                            Smart Pass System • Hi-Line Resort<br>
-                            If you have any questions, please contact the resort staff.
-                        </p>
-                    </div>
-                </body>
-            </html>
-            """
-            
-            response = resend.Emails.send(
-                {
-                    "from": "Smart Pass <onboarding@resend.dev>",
-                    "to": [recipient_email],
-                    "subject": subject,
-                    "html": html_body,
-                }
-            )
-            
-            logger.info(f"QR code email sent to {recipient_email}")
-            return {"success": True, "email_id": response.get("id")}
-            
+
+            html_body = f"""<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;">
+  <h2>Hi {recipient_name},</h2>
+  <p>Your {user_type_friendly} has been confirmed. Here is your QR code for gate access:</p>
+  <div style="text-align:center;margin:30px 0;">
+    <img src="{qr_image_url}" alt="QR Code" style="width:250px;height:250px;">
+  </div>
+  <p><strong>Expires:</strong> {expires_formatted}</p>
+  <p style="color:#666;font-size:12px;">Hi-Line Resort &bull; Crappie House Access System</p>
+</body></html>"""
+
+            return _send(client, recipient_email, "Your Smart Pass QR Code", html_body)
+
         except Exception as e:
             logger.error(f"Failed to send QR code email to {recipient_email}: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -255,39 +193,20 @@ class EmailService:
         recipient_name: str,
         access_timestamp: datetime,
     ) -> dict:
-        """Send notification that access was granted"""
-        if not _init_resend():
-            logger.error("Resend API key not configured. Check RESEND_API_KEY.")
+        client = _get_client()
+        if not client:
             return {"success": False, "error": "Email service not configured"}
 
         try:
-            timestamp_cst = _to_cst(access_timestamp)
-            timestamp_formatted = timestamp_cst.strftime("%I:%M %p on %B %d, %Y")
-            
-            html_body = f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #28a745;">✓ Access Granted</h2>
-                    <p>Hi {recipient_name},</p>
-                    <p>Your QR code was successfully scanned and validated. Welcome!</p>
-                    <p><strong>Access timestamp:</strong> {timestamp_formatted}</p>
-                    <p>Enjoy your visit!</p>
-                </body>
-            </html>
-            """
-            
-            response = resend.Emails.send(
-                {
-                    "from": "Smart Pass <onboarding@resend.dev>",
-                    "to": [recipient_email],
-                    "subject": "Access Granted - Smart Pass",
-                    "html": html_body,
-                }
-            )
-            
-            logger.info(f"Access granted email sent to {recipient_email}")
-            return {"success": True, "email_id": response.get("id")}
-            
+            timestamp_formatted = _to_cst(access_timestamp).strftime("%I:%M %p on %B %d, %Y")
+            html_body = f"""<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+  <h2 style="color:#28a745;">Access Granted</h2>
+  <p>Hi {recipient_name},</p>
+  <p>Your QR code was successfully scanned at <strong>{timestamp_formatted}</strong>. Enjoy your visit!</p>
+</body></html>"""
+            return _send(client, recipient_email, "Access Granted - Hi-Line Resort", html_body)
+
         except Exception as e:
             logger.error(f"Failed to send access granted email to {recipient_email}: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -298,41 +217,28 @@ class EmailService:
         recipient_name: str,
         denial_reason: str,
     ) -> dict:
-        """Send notification that access was denied"""
-        if not _init_resend():
-            logger.error("Resend API key not configured. Check RESEND_API_KEY.")
+        client = _get_client()
+        if not client:
             return {"success": False, "error": "Email service not configured"}
 
         try:
             reason_friendly = {
-                "expired": "Your QR code has expired",
-                "invalid_qr": "The QR code was invalid or not recognized",
-                "payment_failed": "Payment validation failed",
-            }.get(denial_reason, "Access validation failed")
-            
-            html_body = f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #d9534f;">✗ Access Denied</h2>
-                    <p>Hi {recipient_name},</p>
-                    <p><strong>Reason:</strong> {reason_friendly}</p>
-                    <p>Please contact the resort staff for assistance.</p>
-                </body>
-            </html>
-            """
-            
-            response = resend.Emails.send(
-                {
-                    "from": "Smart Pass <onboarding@resend.dev>",
-                    "to": [recipient_email],
-                    "subject": "Access Denied - Smart Pass",
-                    "html": html_body,
-                }
-            )
-            
-            logger.info(f"Access denied email sent to {recipient_email}")
-            return {"success": True, "email_id": response.get("id")}
-            
+                "expired": "Your pass has expired.",
+                "invalid_qr": "The QR code was invalid or not recognized.",
+                "payment_failed": "Payment validation failed.",
+                "revoked": "This pass has been revoked.",
+                "inactive": "This pass is not yet active.",
+            }.get(denial_reason, "Access validation failed.")
+
+            html_body = f"""<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+  <h2 style="color:#d9534f;">Access Denied</h2>
+  <p>Hi {recipient_name},</p>
+  <p><strong>Reason:</strong> {reason_friendly}</p>
+  <p>Please contact resort staff for assistance.</p>
+</body></html>"""
+            return _send(client, recipient_email, "Access Denied - Hi-Line Resort", html_body)
+
         except Exception as e:
             logger.error(f"Failed to send access denied email to {recipient_email}: {str(e)}")
             return {"success": False, "error": str(e)}
@@ -344,39 +250,21 @@ class EmailService:
         hours_remaining: int,
         access_expires_at: datetime,
     ) -> dict:
-        """Send warning that QR code is expiring soon"""
-        if not _init_resend():
-            logger.error("Resend API key not configured. Check RESEND_API_KEY.")
+        client = _get_client()
+        if not client:
             return {"success": False, "error": "Email service not configured"}
 
         try:
-            expires_cst = _to_cst(access_expires_at)
-            expires_formatted = expires_cst.strftime("%I:%M %p on %B %d, %Y")
-            
-            html_body = f"""
-            <html>
-                <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #ffc107;">⏰ Access Expiring Soon</h2>
-                    <p>Hi {recipient_name},</p>
-                    <p>Your Smart Pass QR code will expire in <strong>{hours_remaining} hours</strong>.</p>
-                    <p><strong>Expires at:</strong> {expires_formatted}</p>
-                    <p>If you need extended access, please contact the resort staff.</p>
-                </body>
-            </html>
-            """
-            
-            response = resend.Emails.send(
-                {
-                    "from": "Smart Pass <onboarding@resend.dev>",
-                    "to": [recipient_email],
-                    "subject": "Your Smart Pass is Expiring Soon",
-                    "html": html_body,
-                }
-            )
-            
-            logger.info(f"Expiration warning email sent to {recipient_email}")
-            return {"success": True, "email_id": response.get("id")}
-            
+            expires_formatted = _to_cst(access_expires_at).strftime("%I:%M %p on %B %d, %Y")
+            html_body = f"""<!DOCTYPE html>
+<html><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;">
+  <h2 style="color:#ffc107;">Pass Expiring Soon</h2>
+  <p>Hi {recipient_name},</p>
+  <p>Your pass expires in <strong>{hours_remaining} hours</strong> at {expires_formatted}.</p>
+  <p>Contact resort staff if you need an extension.</p>
+</body></html>"""
+            return _send(client, recipient_email, "Your Pass is Expiring Soon - Hi-Line Resort", html_body)
+
         except Exception as e:
             logger.error(f"Failed to send expiration warning email to {recipient_email}: {str(e)}")
             return {"success": False, "error": str(e)}

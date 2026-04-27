@@ -119,7 +119,7 @@ async def create_guest_pass(guest: GuestCreate):
     Flow:
     1. If payment_source_id provided: Process Square payment
     2. Create guest pass record
-    3. Send confirmation email via Resend
+    3. Send confirmation email via SendGrid
     """
     try:
         raw_check_in = _to_utc(guest.check_in)

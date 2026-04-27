@@ -125,7 +125,7 @@ async def create_visitor_pass(visitor: VisitorCreate):
     1. Validate visitor information
     2. Process payment via Square (not implemented yet)
     3. Generate QR code
-    4. Send email via Resend with QR code
+    4. Send email via SendGrid with QR code
     """
     try:
         visitor_id = str(uuid.uuid4())
