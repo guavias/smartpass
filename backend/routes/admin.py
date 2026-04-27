@@ -39,11 +39,17 @@ qr_service = RotatingQRCodeService()
 def _calculate_pass_status(doc: dict) -> str:
     """Calculate the current status of a pass.
 
-    Time window is checked first — a future pass is always 'inactive' (Upcoming)
-    and a past pass is always 'expired', regardless of any stored status fields.
-    'Revoked' only applies when the pass is currently within its active window.
+    Manual admin override (status_override) always wins over the time window.
+    - 'active' override: scannable regardless of time window (reactivated expired/revoked passes)
+    - 'revoked' override: denied regardless of time window
+    If no override, status is derived purely from the access time window.
+    Upcoming/inactive and expired can only be reached by editing access times.
     """
     from database import utcnow
+    override = str(doc.get("status_override", "")).lower()
+    if override in ("active", "revoked"):
+        return override
+
     now = utcnow()
     access_start = doc.get("access_start")
     if access_start and access_start.tzinfo is None:
@@ -56,9 +62,6 @@ def _calculate_pass_status(doc: dict) -> str:
         return "inactive"
     if access_end and now > access_end:
         return "expired"
-    # Within the active window: respect manual revocation (status_override is the single source of truth)
-    if str(doc.get("status_override", "")).lower() == "revoked":
-        return "revoked"
     return "active"
 
 
@@ -240,13 +243,20 @@ async def patch_admin_pass(pass_id: str, payload: AdminPassPatchRequest):
 
     if "status" in allowed_updates:
         requested_status = str(allowed_updates["status"]).strip().lower()
-        if requested_status == "upcoming":
-            requested_status = "inactive"
-        if requested_status not in {"active", "inactive", "expired", "revoked"}:
-            raise HTTPException(status_code=400, detail="Invalid status. Use active, inactive, expired, or revoked.")
+        if requested_status not in {"active", "revoked"}:
+            raise HTTPException(
+                status_code=400,
+                detail="Status can only be set to 'active' or 'revoked'. "
+                       "To make a pass inactive or expired, edit its access times.",
+            )
         allowed_updates["status"] = requested_status
-        # Only "revoked" is a persistent manual override; all other statuses are time-derived
-        allowed_updates["status_override"] = "revoked" if requested_status == "revoked" else None
+        # Both active and revoked are persistent manual overrides stored in status_override
+        allowed_updates["status_override"] = requested_status
+
+    if "access_start" in allowed_updates or "access_end" in allowed_updates:
+        # Editing times clears any manual status override so the time window becomes authoritative again
+        if "status" not in allowed_updates:
+            allowed_updates["status_override"] = None
 
     if "access_start" in allowed_updates:
         allowed_updates["access_start"] = _normalize_utc(allowed_updates["access_start"])

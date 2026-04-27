@@ -68,13 +68,14 @@ def _normalize_checkout_to_end_of_day(checkout: datetime) -> datetime:
 
 
 def _calculate_pass_status(doc: dict) -> str:
-    """Calculate the current status of a pass.
-
-    Time window is checked first — a future pass is always 'inactive' (Upcoming)
-    and a past pass is always 'expired', regardless of any stored status fields.
-    'Revoked' only applies when the pass is currently within its active window,
-    preventing stale or erroneous revoke flags from hiding upcoming passes.
+    """Manual status_override always wins over the time window.
+    'active' override = scannable regardless of time. 'revoked' override = always denied.
+    Without an override, status is derived from the access time window.
     """
+    override = str(doc.get("status_override", "")).lower()
+    if override in ("active", "revoked"):
+        return override
+
     now = utcnow()
     access_start = doc.get("access_start")
     if access_start and access_start.tzinfo is None:
@@ -87,9 +88,6 @@ def _calculate_pass_status(doc: dict) -> str:
         return "inactive"
     if access_end and now > access_end:
         return "expired"
-    # Within the active window: respect manual revocation (status_override is the single source of truth)
-    if str(doc.get("status_override", "")).lower() == "revoked":
-        return "revoked"
     return "active"
 
 

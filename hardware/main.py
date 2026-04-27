@@ -57,6 +57,14 @@ def validate_pass(pass_id):
     if not doc:
         return False, None, "not_found"
 
+    # Manual override always wins over the time window
+    override = str(doc.get("status_override", "")).lower()
+    if override == "active":
+        return True, doc, "valid"
+    if override == "revoked":
+        return False, doc, "revoked"
+
+    # No override: check time window
     now = datetime.now(timezone.utc)
 
     access_start = doc.get("access_start")
@@ -72,10 +80,6 @@ def validate_pass(pass_id):
 
     if access_end and now > access_end:
         return False, doc, "expired"
-
-    # Within the active window: check for admin revocation
-    if str(doc.get("status_override", "")).lower() == "revoked":
-        return False, doc, "revoked"
 
     return True, doc, "valid"
 

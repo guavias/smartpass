@@ -906,14 +906,28 @@ export default function Dashboard() {
                 <span className={styles.muted}>Current: {draft.status}</span>
                 {draft.status === "Active" && (
                   <>
-                    <span className={styles.muted}>Deactivating a pass sets its status to Revoked.</span>
+                    <span className={styles.muted}>Revoking blocks gate access immediately.</span>
                     <div className={styles.rowActions}>
                       <button
                         className={styles.secondaryBtn}
                         type="button"
                         onClick={() => setDraft({ ...draft, status: "Revoked" })}
                       >
-                        Deactivate Pass
+                        Revoke Pass
+                      </button>
+                    </div>
+                  </>
+                )}
+                {(draft.status === "Revoked" || draft.status === "Expired") && (
+                  <>
+                    <span className={styles.muted}>Reactivating overrides the time window — the pass becomes scannable immediately.</span>
+                    <div className={styles.rowActions}>
+                      <button
+                        className={styles.secondaryBtn}
+                        type="button"
+                        onClick={() => setDraft({ ...draft, status: "Active" })}
+                      >
+                        Reactivate Pass
                       </button>
                     </div>
                   </>
