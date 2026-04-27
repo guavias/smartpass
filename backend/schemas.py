@@ -68,6 +68,7 @@ class GuestResponse(GuestBase):
     portal_token: str
     portal_url: str
     pass_type: Literal["guest"] = "guest"
+    reservation_id: Optional[str] = None
     created_at: datetime
     access_start: datetime
     access_end: datetime

@@ -100,7 +100,7 @@ def _serialize_guest(doc: dict) -> GuestResponse:
         name=doc["name"],
         email=doc["email"],
         phone=doc.get("phone"),
-        reservation_id=doc["reservation_id"],
+        reservation_id=doc.get("reservation_id"),
         portal_token=doc["portal_token"],
         portal_url=f"{_portal_base_url()}/reservation/{doc['id']}",
         created_at=doc["created_at"],
